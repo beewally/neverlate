@@ -1,7 +1,6 @@
-from __future__ import print_function
-
 import datetime
 import os
+from pprint import pprint as pp
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -13,19 +12,16 @@ from googleapiclient.errors import HttpError
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
 
-def addone(num: int) -> str:
-    return str(num + 1)
-
-
-def app_data_dir():  # -> str
+def app_data_dir() -> str:
     """
     Application data directory.
 
     Returns:
         str: Folder path
     """
-    root_folder = os.environ.get("APPDATA", os.path.join(os.environ["HOME"], ".appdata"))
-
+    root_folder = os.environ.get(
+        "APPDATA", os.path.join(os.environ["HOME"], ".appdata")
+    )
     app_data_dir = os.path.join(root_folder, "calendar_alert")
     if not os.path.exists(app_data_dir):
         os.makedirs(app_data_dir)
@@ -76,7 +72,6 @@ def main():
             orderBy="startTime",
         )
         events_result = events_query.execute()
-        from pprint import pprint as pp
 
         print("EVENTS RESULT:")
         # pp(events_result)

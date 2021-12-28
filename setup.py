@@ -12,14 +12,19 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/beewally/calendar_alert",
-    install_requires=["google-api-python-client", "google-auth-httplib2", "google-auth-oauthlib"],
+    install_requires=[
+        "PySide6",
+        "google-api-python-client",
+        "google-auth-httplib2",
+        "google-auth-oauthlib",
+    ],
     packages=[
         "calendar_alert",
         # "google-api-python-client",
         # "google-auth-httplib2",
         # "google-auth-oauthlib",
     ],  # setuptools.find_packages()
-    package_data={"": ["credentials.json"]},
+    package_data={"": ["credentials.json", "images/*.png"]},
     include_package_data=True,
     classifiers=[
         "Programming Language :: Python :: 3",
