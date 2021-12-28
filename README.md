@@ -1,2 +1,2 @@
 # calendar_alert
-In your face notifications you can't ignore for calendar events.
+In your face notifications that you can't ignore for your google calendar events.
