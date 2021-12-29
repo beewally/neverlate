@@ -1,10 +1,20 @@
 import setuptools
 
+APP = ["calendar_alert/finish.py"]
+DATA_FILES = []
+OPTIONS = {
+    "plist": {"LSUIElement": True},
+}
+
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="calendar_alert",
+    app=APP,
+    data_files=DATA_FILES,
+    options={"py2app": OPTIONS},
+    setup_requires=["py2app"],
     version="0.0.1",
     author="Brian Walters",
     author_email="brianrwalters@gmail.com",
