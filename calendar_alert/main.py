@@ -83,11 +83,23 @@ def main():
             return
 
         # Prints the start and name of the next 10 events
-        for event in events[1:]:
+        now = datetime.datetime.now()
+        for event in events[:]:
             # print("=" * 80)
             # pp(event)
+
             start = event["start"].get("dateTime", event["start"].get("date"))
-            print(start, event["summary"])
+
+            startdt = datetime.datetime.strptime(start[:19], "%Y-%m-%dT%H:%M:%S")
+            seconds_till_event = (startdt - now).total_seconds()
+
+            print(
+                start,
+                event["summary"],
+                "===\t",
+                int(seconds_till_event),
+            )  # event["start"].get("timeZone", "None")
+        now = datetime.datetime.now()
 
     except HttpError as error:
         print("An error occurred: %s" % error)
