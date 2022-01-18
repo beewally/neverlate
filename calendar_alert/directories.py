@@ -12,7 +12,7 @@ def app_data_dir() -> str:
     Returns:
         str: Folder path
     """
-    folder_name = "calendar_alert"
+    folder_name = ".calendar_alert"
     if "HOME" in os.environ:
         # Linux/Mac
         folder = os.path.join(os.environ["HOME"], folder_name)
