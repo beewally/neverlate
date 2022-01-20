@@ -1,6 +1,7 @@
 import datetime
 import os
 import sys
+import time
 from ctypes import Union
 from pprint import pprint as pp
 from typing import Any, List, Optional
@@ -106,8 +107,8 @@ class TimeEvent:
                         if len(self.summary) <= 50
                         else self.summary[:47] + "..."
                     ).ljust(50),
-                    "Minutes till event:  "
-                    + f"{self.get_time_till_event()/60:.2f}".ljust(7),
+                    "Seconds till event:  "
+                    + f"{self.get_seconds_till_event()/60:.2f}".ljust(7),
                     # f"Event Type: {self._event['eventType']}",
                     # "End Time:", self._event['endTime'],
                     # f"ID: {self.id}",
@@ -119,17 +120,7 @@ class TimeEvent:
             + ">"
         )
 
-    def should_alert(self) -> bool:
-        # fmt: off
-        if (
-            self.has_declined()
-            or self.has_ended()
-        ):
-            return False
-        # fmt: on
-        return True
-
-    def get_time_till_event(self) -> float:
+    def get_seconds_till_event(self) -> float:
         now = datetime.datetime.now(LOCAL_TIMEZONE)
         return (self.start_time - now).total_seconds()
 
@@ -140,14 +131,15 @@ class TimeEvent:
         return False
 
     def has_ended(self) -> bool:
-        now = datetime.datetime.now()
-        return (self.end_time - now).total_seconds() > 0
+        now = datetime.datetime.now(LOCAL_TIMEZONE)
+        return (self.end_time - now).total_seconds() < 0
 
 
 class GoogleCalDownloader:  # (QObject):
     primary_calendar: Calendar  # TODO: not used?
     calendars: list[Calendar] = []
     events: list[TimeEvent] = []
+    last_update_time: float = 0.0
 
     # events_gathered_signal = Signal(list[Calendar])
 
@@ -217,6 +209,7 @@ class GoogleCalDownloader:  # (QObject):
             events += self.get_events(calendar)
         self.events = events
         print("   EVENTS UPDATED")
+        self.last_update_time = time.time()
         # self.events_gathered_signal.emit()
 
     def get_events(self, calendar: Calendar) -> list[TimeEvent]:
