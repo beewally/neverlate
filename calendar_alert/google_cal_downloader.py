@@ -94,8 +94,6 @@ class TimeEvent:
         end_time = self._event["end"]["dateTime"]
         self.end_time = datetime.datetime.fromisoformat(end_time)
         self.id = self._event["id"]
-        # self.end_time = datetime.datetime.strptime(
-        #    end_time[:19], "%Y-%m-%dT%H:%M:%S")
 
     def __repr__(self):
         return (
@@ -123,6 +121,14 @@ class TimeEvent:
     def get_seconds_till_event(self) -> float:
         now = datetime.datetime.now(LOCAL_TIMEZONE)
         return (self.start_time - now).total_seconds()
+
+    def get_video_url(self) -> str:
+        entry_points = self._event.get("conferenceData", {}).get("entryPoints", [])
+        for entry_point in entry_points:
+            if entry_point["entryPointType"] == "video":
+                return entry_point["uri"]
+
+        return ""
 
     def has_declined(self) -> bool:
         for attendee in self._event.get("attendees", []):
@@ -169,13 +175,13 @@ class GoogleCalDownloader:  # (QObject):
                 try:
                     creds.refresh(Request())
                 except RefreshError:
-                    print("Token is bad!?")
-
-                    for k, v in os.environ.items():
-                        print(k, "->", v)
-                    print(" ================= TERMINATING!!!!!!!!!!!!!")
-                    sys.exit(0)
-                    # TODO: alert and terminate
+                    print(" ================ Token is bad! ================")
+                    try:
+                        creds.refresh(Request())
+                    except RefreshError:
+                        os.remove(token_file_path)
+                        return self.get_credentials()
+                        # TODO: alert and terminate
             else:
                 print("HERE WE GO")
                 print(os.path.abspath(os.path.curdir))

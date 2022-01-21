@@ -35,9 +35,16 @@ class EventAlerter:
         self.alert_time = time_event.start_time
         self._alert_count = 0
         self.dismissed_alerts = False
-        self.alerter = PopUpAlerter(self.time_event)
+        self.alerter = PopUpAlerterThread(self.time_event)
         self.alerter.dismissed_signal.connect(self._dismiss_alerts)
         self.alerter.snooze_signal.connect(self.snooze)
+
+    @Slot()
+    def _dismiss_alerts(self):
+        """
+        No longer display alerts for this event.
+        """
+        self.dismissed_alerts = True
 
     def get_seconds_till_alert(self) -> float:
         now = datetime.now(LOCAL_TIMEZONE)
@@ -67,13 +74,6 @@ class EventAlerter:
         self._alert_count += 1
         self.alerter.start()
 
-    @Slot()
-    def _dismiss_alerts(self):
-        """
-        No longer display alerts for this event.
-        """
-        self.dismissed_alerts = True
-
     def will_alert(self) -> bool:
         # fmt: off
         if (
@@ -87,7 +87,7 @@ class EventAlerter:
         return True
 
 
-class PopUpAlerter(QThread):
+class PopUpAlerterThread(QThread):
 
     APP_PATH = os.path.join(os.path.dirname(__file__), "pop_up_alert.py")
     process: subprocess.Popen
@@ -105,6 +105,8 @@ class PopUpAlerter(QThread):
         cmd = ["python", self.APP_PATH]
         cmd += [
             self.time_event.summary,
+            self.time_event.start_time.isoformat(),
+            self.time_event.get_video_url(),
         ]
         self.process = subprocess.Popen(
             cmd,
@@ -114,11 +116,13 @@ class PopUpAlerter(QThread):
         )
         result = self.process.wait()
         output = self.process.stdout.read().decode()  # type: str
+        err = self.process.stderr.read().decode()
         if result != 0:
-            # Something bad happened. Just alert again
-            self.dismissed = False
-            self.snooze_time = 0
+            # Something bad happened. Just alert aga
+            print("ERROR:", err)
+            return
         else:
+            print("Closed event, output:", output)
             if output.startswith(OUTPUT_SNOOZE):
                 snooze_time = int(output.split()[-1])
                 self.snooze_signal.emit(snooze_time)
@@ -134,8 +138,15 @@ class UpdateCalendar(QThread):
     def run(self):
         print("Updating calendars in thread...")
         # time.sleep(12)
-        self.calendar.update_calendars()
-        self.calendar.update_events()
+        # TODO: error checking
+        from google.auth.exceptions import RefreshError
+
+        try:
+            self.calendar.update_calendars()
+            self.calendar.update_events()
+        except RefreshError:
+            print("BAD THINGS HAVE HAPPENED AND NEED TO BE FIXED")
+            raise
 
 
 class MainDialog(QDialog):
@@ -143,10 +154,13 @@ class MainDialog(QDialog):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Event Notifier")
+        self.setWindowTitle("NeverBeLate")
+        self.setWindowFlags(
+            Qt.Tool
+        )  # TODO: test / research more https://doc.qt.io/qt-5/qt.html#WindowType-enum
         self.setWindowIcon(get_icon("tray_icon.png"))
         self.update_now_button = QPushButton("Update Now")
-        self.quit_button = QPushButton("Press to quit")
+        self.quit_button = QPushButton("Exit App")
         self.debug_button = QPushButton("Debug Thing - Terminate All Dialogs")
         self.time_to_update_label = QLabel()
 
@@ -164,8 +178,8 @@ class MainDialog(QDialog):
 class App:
     """Main calendar_alert Qt application."""
 
-    UPDATE_FREQUENCY = 30  # seconds to wait before updating events
-    MINUTES_BEFORE_ALERT = 10
+    UPDATE_FREQUENCY = 60  # seconds to wait before downloading new events
+    MINUTES_BEFORE_ALERT = 20
 
     tray: QSystemTrayIcon
 
@@ -174,7 +188,6 @@ class App:
         self.app = QApplication(sys.argv)
         self.app.aboutToQuit.connect(self.quitting)
         self.app.setQuitOnLastWindowClosed(False)
-        # self.app.setWindowIcon(get_icon("tray_icon.png"))  # DOesn't seem to work
         self.main_dialog = MainDialog()
         self.main_dialog.quit_button.clicked.connect(self.app.quit)
         self.main_dialog.update_now_button.clicked.connect(self.on_update_now)
@@ -198,7 +211,7 @@ class App:
         self.update_calendar_thread.started.connect(self.update_thread_started)
         self.update_calendar_thread.start()
 
-        self.alert_apps: list[PopUpAlerter] = []  # TODO: deprecate
+        self.alert_apps: list[PopUpAlerterThread] = []  # TODO: deprecate
         self.event_alerters = {}  # type: Dict[str, EventAlerter]
 
     def on_update_now(self):
@@ -249,7 +262,7 @@ class App:
         # self.tray.showMessage("fuga", "moge")
 
     def quitting(self) -> None:
-        print("QUITTING")
+        """Quitting the app. Make sure we terminate all threads first."""
         self.update_calendar_thread.finished.disconnect()
         self.update_calendar_thread.terminate()
         self.terminate_alert_apps()
@@ -261,15 +274,24 @@ class App:
             myappid = "bw.calendar_alert.1"  # arbitrary string
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         self.main_dialog.show()
+        self.app.setWindowIcon(get_icon("tray_icon.png"))
         # Enter Qt application main loop
         self.app.exec()
         sys.exit()
 
     @Slot()
     def tray_clicked(self, reason: QSystemTrayIcon.ActivationReason):
-        if reason == QSystemTrayIcon.ActivationReason.Trigger:
-            self.main_dialog.setVisible(not self.main_dialog.isVisible())
-            print("TRAY CLICKED")
+        print("CLICK", reason)
+        # reason == QSystemTrayIcon.ActivationReason.Trigger
+
+        self.main_dialog.close()
+        self.main_dialog.setVisible(True)
+        self.main_dialog.show()
+        self.main_dialog.setFocus()
+        self.main_dialog.setWindowState(
+            self.main_dialog.windowState() & ~Qt.WindowMinimized | Qt.WindowActive
+        )
+        self.main_dialog.activateWindow()
 
     def terminate_alert_apps(self):
 
@@ -280,12 +302,6 @@ class App:
 
     def update(self):
         # print(QCursor.pos())
-        # for i, app in enumerate(self.alert_apps[:]):
-        #    if app.process.poll() == None:
-        #        continue
-
-        # print(i, app.title, app.process.poll(), app.process.stdout.read())
-        # self.alert_apps = []
         if self.update_calendar_thread.isFinished():
             time_to_update = self.UPDATE_FREQUENCY - (
                 time.time() - self.gcal.last_update_time
@@ -297,17 +313,10 @@ class App:
                     f"Updating events in {time_to_update:.0f} seconds"
                 )
 
-        print("=" * 80)
         for event_alerter in self.event_alerters.values():
             event_alerter.update(
                 seconds_before_first_alert=self.MINUTES_BEFORE_ALERT * 60
             )
-        # else:
-        #    self.main_dialog.time_to_update_label.setText("Updating events2...")
-        #    print(
-        #        "   Updating cal in:",
-        #        self.UPDATE_FREQUENCY - (time.time() - self.gcal.last_update_time),
-        #    )
 
 
 if __name__ == "__main__":
