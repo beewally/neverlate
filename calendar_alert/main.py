@@ -6,7 +6,7 @@ import sys
 import time
 from datetime import datetime, timedelta
 from pprint import pprint as pp
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from PySide6.QtCore import Qt, QThread, QThreadPool, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QCursor, QDesktopServices, QWindow
@@ -161,7 +161,7 @@ class MainDialog(QDialog):
         self.setWindowIcon(get_icon("tray_icon.png"))
         self.update_now_button = QPushButton("Update Now")
         self.quit_button = QPushButton("Exit App")
-        self.debug_button = QPushButton("Debug Thing - Terminate All Dialogs")
+        self.debug_button = QPushButton("Debug Tester")
         self.time_to_update_label = QLabel()
 
         main_layout = QVBoxLayout()
@@ -191,7 +191,7 @@ class App:
         self.main_dialog = MainDialog()
         self.main_dialog.quit_button.clicked.connect(self.app.quit)
         self.main_dialog.update_now_button.clicked.connect(self.on_update_now)
-        self.main_dialog.debug_button.clicked.connect(self.terminate_alert_apps)
+        self.main_dialog.debug_button.clicked.connect(self._undismiss_events)
 
         self.preferences_dialog = PreferencesDialog()
         self._setup_tray()
@@ -211,8 +211,12 @@ class App:
         self.update_calendar_thread.started.connect(self.update_thread_started)
         self.update_calendar_thread.start()
 
-        self.alert_apps: list[PopUpAlerterThread] = []  # TODO: deprecate
+        self.alert_apps: List[PopUpAlerterThread] = []  # TODO: deprecate
         self.event_alerters = {}  # type: Dict[str, EventAlerter]
+
+    def _undismiss_events(self):
+        for e in self.event_alerters.values():
+            e.dismissed_alerts = False
 
     def on_update_now(self):
         print("ON UPDATE NOW")

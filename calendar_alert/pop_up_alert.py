@@ -52,7 +52,7 @@ class AlertDialog(QDialog):
         button_t1 = QPushButton("Snooze for 1 minute")
         button_t1.clicked.connect(lambda: self.snooze(1))
 
-        self.button_join = QPushButton("Open Meeting")
+        self.button_join = QPushButton("Open Video URL")
         self.button_join.clicked.connect(self.dismiss_and_join)
         if not self.video_uri:
             self.button_join.setVisible(False)
@@ -101,7 +101,7 @@ class AlertDialog(QDialog):
         min_ = str(min_).rjust(2, "0") if hrs else str(min_)
         if seconds_till <= 0:
             self.time_to_event_label.setText(
-                f"YOU'RE LATE! IT STARTED {hrs}{min_}:{sec} AGO!!"
+                f"YOU'RE LATE! (How did this happen!?)\nYOUR MEETING STARTED {hrs}{min_}:{sec} AGO!!"
             )
             font = self.time_to_event_label.font()
             font.setBold(True)
