@@ -100,16 +100,19 @@ class AlertDialog(QDialog):
         hrs = f"{hrs}:" if hrs else ""
         min_ = str(min_).rjust(2, "0") if hrs else str(min_)
         if seconds_till <= 0:
+            # Late
             self.time_to_event_label.setText(
-                f"YOU'RE LATE! (How did this happen!?)\nYOUR MEETING STARTED {hrs}{min_}:{sec} AGO!!"
+                f"YOU'RE LATE! (How could this happen!?)\nYOUR MEETING STARTED {hrs}{min_}:{sec} AGO!!"
             )
             font = self.time_to_event_label.font()
             font.setBold(True)
             self.time_to_event_label.setFont(font)
             self.setStyleSheet("background-color: rgb(255, 55, 55);")
-        elif seconds_till < 60 * 2:
-            self.setStyleSheet("background-color: rgb(255, 245, 55);")
         else:
+            if seconds_till < 60 * 2:
+                # Warning!
+                self.setStyleSheet("background-color: rgb(255, 245, 55);")
+            # Plenty of time...
             self.time_to_event_label.setText(f"Time to event: {hrs}{min_}:{sec}")
 
     def snooze(self, minutes: float):

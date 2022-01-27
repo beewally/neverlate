@@ -1,10 +1,17 @@
-
-
 from PySide6.QtCore import Qt, QThread, QThreadPool, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QCursor, QDesktopServices, QWindow
 from PySide6.QtWidgets import (  # pylint: disable=no-name-in-module
-    QApplication, QDialog, QHBoxLayout, QLabel, QMainWindow, QMenu,
-    QPushButton, QSystemTrayIcon, QVBoxLayout, QWidget)
+    QApplication,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QPushButton,
+    QSystemTrayIcon,
+    QVBoxLayout,
+    QWidget,
+)
 
 from calendar_alert.directories import get_icon
 

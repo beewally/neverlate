@@ -18,11 +18,10 @@ from googleapiclient.discovery import Resource, build
 # Other
 from PySide6.QtCore import QObject, Signal, Slot
 
-# Local imports
 from calendar_alert.directories import app_data_dir
 
-# LOCAL_TIMEZONE = datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo
-LOCAL_TIMEZONE = datetime.datetime.now().astimezone().tzinfo
+# Local imports
+from calendar_alert.utils import now_datetime
 
 # from googleapiclient.errors import HttpError
 
@@ -67,7 +66,7 @@ class TimeEvent:
     Calendar event data model for time-based events (not all day events).
     """
 
-    def __init__(self, item: dict, calendar: Calendar):
+    def __init__(self, item: dict[Any, Any], calendar: Calendar):
         """
         Create the time event.
 
@@ -95,7 +94,7 @@ class TimeEvent:
         # self.start_time = datetime.datetime.strptime(st_time[:19], "%Y-%m-%dT%H:%M:%S")
         end_time = self._event["end"]["dateTime"]
         self.end_time = datetime.datetime.fromisoformat(end_time)
-        self.id = self._event["id"]
+        self.id = self._event["id"] + "::" + self.start_time.isoformat()
 
     def __repr__(self):
         return (
@@ -121,8 +120,7 @@ class TimeEvent:
         )
 
     def get_seconds_till_event(self) -> float:
-        now = datetime.datetime.now(LOCAL_TIMEZONE)
-        return (self.start_time - now).total_seconds()
+        return (self.start_time - now_datetime()).total_seconds()
 
     def get_video_url(self) -> str:
         entry_points = self._event.get("conferenceData", {}).get("entryPoints", [])
@@ -139,8 +137,7 @@ class TimeEvent:
         return False
 
     def has_ended(self) -> bool:
-        now = datetime.datetime.now(LOCAL_TIMEZONE)
-        return (self.end_time - now).total_seconds() < 0
+        return (self.end_time - now_datetime()).total_seconds() < 0
 
 
 class GoogleCalDownloader:  # (QObject):
@@ -210,13 +207,12 @@ class GoogleCalDownloader:  # (QObject):
 
         self.calendars = cal_ids
 
-    # @Slot()
     def update_events(self) -> None:
         events = []
+        print("=" * 80)
         for calendar in self.calendars:
             events += self.get_events(calendar)
         self.events = events
-        print("   EVENTS UPDATED")
         self.last_update_time = time.time()
         # self.events_gathered_signal.emit()
 
@@ -231,12 +227,12 @@ class GoogleCalDownloader:  # (QObject):
         """
         # Call the Calendar API
 
-        now = datetime.datetime.utcnow().isoformat() + "Z"  # 'Z' indicates UTC time
+        # now_ = datetime.datetime.utcnow().isoformat() + "Z"  # 'Z' indicates UTC time
         # time_min = now.replace(hour=0, minute=0, second=0, microsecond=0)
         # time_max = now.replace(hour=23, minute=59, second=59, microsecond=0)
-        now = datetime.datetime.now(LOCAL_TIMEZONE)
-        time_min = now.replace(hour=0, minute=0, second=0)
-        time_max = now.replace(hour=23, minute=59, second=59)
+        now_ = now_datetime()
+        time_min = now_.replace(hour=0, minute=0, second=0)
+        time_max = now_.replace(hour=23, minute=59, second=59)
         # print("Cal:", calendar.summary, "---", calendar.id)
         events_query = self.service.events().list(  # type: ignore
             calendarId=calendar.id,
@@ -245,7 +241,7 @@ class GoogleCalDownloader:  # (QObject):
             timeMax=time_max.isoformat(),
             maxResults=250,
             singleEvents=True,
-            orderBy="startTime",
+            # orderBy="startTime",
         )
         events_result = events_query.execute()
 
@@ -259,6 +255,8 @@ class GoogleCalDownloader:  # (QObject):
             # Skip all day events.  All day events have a event['start']['date'] and not a 'dateTime']
 
             if 0:
+                pp(item)
+                continue
                 if "dateTime" not in item["start"]:
                     continue
                 # print("=======")
@@ -269,7 +267,7 @@ class GoogleCalDownloader:  # (QObject):
             try:
                 event = TimeEvent(item, calendar)
             except ValueError:
-                # print("Invalid event", item["summary"])
+                print("Invalid event", item["summary"])
                 continue
             result.append(event)
 

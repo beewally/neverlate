@@ -1,16 +1,17 @@
 """Main app entry point."""
+from __future__ import annotations
+
 import ctypes
 import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timedelta
-from pprint import pprint as pp
-from typing import Any, Dict, List, Optional, Union
+from datetime import timedelta
 
-from PySide6.QtCore import Qt, QThread, QThreadPool, QTimer, Signal, Slot
-from PySide6.QtGui import QAction, QCursor, QDesktopServices, QWindow
+from PySide6.QtCore import QRect, Qt, QThread, QTimer, Signal, Slot  # QThreadPool
+from PySide6.QtGui import QAction, QCursor, QDesktopServices, QFont, QWindow
 from PySide6.QtWidgets import (  # pylint: disable=no-name-in-module
+    QAbstractScrollArea,
     QApplication,
     QDialog,
     QHBoxLayout,
@@ -18,6 +19,8 @@ from PySide6.QtWidgets import (  # pylint: disable=no-name-in-module
     QMenu,
     QPushButton,
     QSystemTrayIcon,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
 )
 
@@ -25,8 +28,17 @@ from calendar_alert.constants import OUTPUT_DISMISS, OUTPUT_SNOOZE
 from calendar_alert.directories import get_icon
 from calendar_alert.google_cal_downloader import GoogleCalDownloader, TimeEvent
 from calendar_alert.preferences import PreferencesDialog
+from calendar_alert.utils import now_datetime
 
-LOCAL_TIMEZONE = datetime.now().astimezone().tzinfo
+TABLE_TITLE = 0
+TABLE_EVENT_TIMES = 2
+TABLE_END_TIME = 3
+TABLE_TIME_TILL_ALERT = 1
+
+# TODO: add a column for attending status
+# TODO: changing a time for an event doesn't change the id, causing alert time to NOT be updated!! FIX
+
+MINUTES_BEFORE_ALERT = 10
 
 
 class EventAlerter:
@@ -47,8 +59,8 @@ class EventAlerter:
         self.dismissed_alerts = True
 
     def get_seconds_till_alert(self) -> float:
-        now = datetime.now(LOCAL_TIMEZONE)
-        return (self.alert_time - now).total_seconds()
+        # TODO: DEPRECATE
+        return (self.alert_time - now_datetime()).total_seconds()
 
     @Slot(int)
     def snooze(self, seconds: int = 0) -> None:
@@ -58,17 +70,28 @@ class EventAlerter:
         Args:
             seconds (int): How many seconds to snooze for.
         """
-        self.alert_time = datetime.now(LOCAL_TIMEZONE) + timedelta(seconds=seconds)
+        self.alert_time = now_datetime() + timedelta(seconds=seconds)
 
-    def update(self, seconds_before_first_alert: int):
-        padding = 0 if self._alert_count else seconds_before_first_alert
+    def time_till_alert(self) -> int:
+        """Seconds until a notification should appear.
+
+        Returns:
+            int: Seconds till event. Less than zero = do not alert.
+        """
+        padding = 0 if self._alert_count else MINUTES_BEFORE_ALERT * 60
         if (
             self.dismissed_alerts
             or self.time_event.has_declined()
             or self.time_event.has_ended()
             or self.alerter.isRunning()  # Already alerted
-            or self.get_seconds_till_alert() - padding > 0
         ):
+            return -1
+        secs_till_alert = (self.alert_time - now_datetime()).total_seconds()
+        return max(0, int(secs_till_alert) - padding)
+
+    def update(self):
+        secs_till = self.time_till_alert()
+        if secs_till != 0:
             return
         # Display an alert
         self._alert_count += 1
@@ -98,6 +121,11 @@ class PopUpAlerterThread(QThread):
         super().__init__()
 
         self.time_event = time_event
+
+    def close_pop_ups(self):
+        if self.isRunning():
+            self.process.terminate()
+            self.terminate()
 
     def run(self):
 
@@ -155,31 +183,109 @@ class MainDialog(QDialog):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("NeverBeLate")
-        self.setWindowFlags(
-            Qt.Tool
-        )  # TODO: test / research more https://doc.qt.io/qt-5/qt.html#WindowType-enum
+        # self.setWindowFlags(
+        #     Qt.Tool
+        # )  # TODO: test / research more https://doc.qt.io/qt-5/qt.html#WindowType-enum
         self.setWindowIcon(get_icon("tray_icon.png"))
         self.update_now_button = QPushButton("Update Now")
         self.quit_button = QPushButton("Exit App")
         self.debug_button = QPushButton("Debug Tester")
         self.time_to_update_label = QLabel()
 
+        self.event_table = QTableWidget(0, 3)
+        self.event_table.setHorizontalHeaderItem(TABLE_TITLE, QTableWidgetItem("Event"))
+        self.event_table.setHorizontalHeaderItem(
+            TABLE_EVENT_TIMES, QTableWidgetItem("Time")
+        )
+        self.event_table.setHorizontalHeaderItem(
+            TABLE_TIME_TILL_ALERT, QTableWidgetItem("Tim Till Alert")
+        )
+        # self.event_table.horizontalHeader().hide()
+        self.event_table.verticalHeader().hide()
+        self.event_table.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
+
         main_layout = QVBoxLayout()
+        main_layout.addWidget(self.event_table)
         main_layout.addWidget(self.debug_button)
-        main_layout.addStretch()
+        # main_layout.addStretch()
+
         layout = QHBoxLayout()
+        layout.addStretch()
         layout.addWidget(self.time_to_update_label)
         layout.addWidget(self.update_now_button)
+
         main_layout.addLayout(layout)
         main_layout.addWidget(self.quit_button)
         self.setLayout(main_layout)
+
+    def update_table_with_events(self, alerters: list[EventAlerter]):
+
+        self.event_table.setRowCount(len(alerters))
+        alerters.sort(key=lambda a: a.time_event.start_time)
+        now = now_datetime()
+        for idx, alerter in enumerate(alerters):
+            # font = item.font()  # type: QFont
+            # font.setStrikeOut(True)
+            # item.setFont(font)
+
+            self.event_table.setItem(
+                idx, TABLE_TITLE, QTableWidgetItem(alerter.time_event.summary)
+            )
+
+            # Start time
+            start_time = alerter.time_event.start_time.strftime("%I:%M")
+            if start_time[0] == "0":
+                start_time = start_time[1:]
+
+            # End time
+            end_time = alerter.time_event.end_time.strftime("%I:%M %p")
+            if end_time[0] == "0":
+                end_time = end_time[1:]
+
+            self.event_table.setItem(
+                idx,
+                TABLE_EVENT_TIMES,
+                QTableWidgetItem(f"{start_time} - {end_time}"),
+            )
+
+            # Time till alert
+            time_till_alert = alerter.time_till_alert()
+            if time_till_alert <= 0:
+                time_till_alert = "---"
+            else:
+                min_, secs = divmod(time_till_alert, 60)
+                hours, min_ = divmod(min_, 60)
+                if hours:
+                    secs = str(secs).zfill(2)
+                    min_ = str(min_).zfill(2)
+                    time_till_alert = f"{hours}:{min_}:{secs}"
+                else:
+                    secs = str(secs).zfill(2)
+                    time_till_alert = f"{min_}:{secs}"
+
+                time_till_alert = str(time_till_alert)
+
+            self.event_table.setItem(
+                idx,
+                TABLE_TIME_TILL_ALERT,
+                QTableWidgetItem(time_till_alert),
+            )
+
+            if alerter.time_event.has_declined():
+                for column in range(self.event_table.columnCount()):
+                    item = self.event_table.item(idx, column)
+                    font = QFont()
+                    font.setItalic(True)
+                    font.setStrikeOut(True)
+                    item.setFont(font)
+
+        self.event_table.resizeColumnsToContents()
 
 
 class App:
     """Main calendar_alert Qt application."""
 
     UPDATE_FREQUENCY = 60  # seconds to wait before downloading new events
-    MINUTES_BEFORE_ALERT = 20
 
     tray: QSystemTrayIcon
 
@@ -192,6 +298,12 @@ class App:
         self.main_dialog.quit_button.clicked.connect(self.app.quit)
         self.main_dialog.update_now_button.clicked.connect(self.on_update_now)
         self.main_dialog.debug_button.clicked.connect(self._undismiss_events)
+
+        # Size of initial window
+        rect = QRect(0, 0, 600, 300)
+        screen_geo = self.app.primaryScreen().geometry()
+        rect.moveCenter(screen_geo.center())
+        self.main_dialog.setGeometry(rect)
 
         self.preferences_dialog = PreferencesDialog()
         self._setup_tray()
@@ -211,12 +323,16 @@ class App:
         self.update_calendar_thread.started.connect(self.update_thread_started)
         self.update_calendar_thread.start()
 
-        self.alert_apps: List[PopUpAlerterThread] = []  # TODO: deprecate
-        self.event_alerters = {}  # type: Dict[str, EventAlerter]
+        self.event_alerters = {}  # type: dict[str, EventAlerter]
 
     def _undismiss_events(self):
-        for e in self.event_alerters.values():
-            e.dismissed_alerts = False
+
+        for event in self.event_alerters.values():
+            if event.alerter.isRunning():
+                event.alerter.process.terminate()
+                event.alerter.terminate()
+            event.dismissed_alerts = False
+            event._alert_count = 0
 
     def on_update_now(self):
         print("ON UPDATE NOW")
@@ -228,6 +344,7 @@ class App:
         """
         Called when the update thread is finished - all google calendars and events have been donwloaded.
         """
+        # TODO: support for changing / disabling calendars
         self.main_dialog.update_now_button.setEnabled(True)
         cur_event_ids = {event.id for event in self.gcal.events}
         for time_event in self.gcal.events:
@@ -237,7 +354,9 @@ class App:
                 self.event_alerters[time_event.id].time_event = time_event
 
         for id in set(self.event_alerters) - cur_event_ids:
-            print("DELETED:", id)
+            self.event_alerters[id].alerter.close_pop_ups()
+            del self.event_alerters[id]
+
             # TODO: process
 
     def update_thread_started(self):
@@ -269,7 +388,7 @@ class App:
         """Quitting the app. Make sure we terminate all threads first."""
         self.update_calendar_thread.finished.disconnect()
         self.update_calendar_thread.terminate()
-        self.terminate_alert_apps()
+        self.close_all_pop_ups()
         # self.thread.wait()
 
     def run(self):
@@ -297,12 +416,10 @@ class App:
         )
         self.main_dialog.activateWindow()
 
-    def terminate_alert_apps(self):
+    def close_all_pop_ups(self):
 
         for event in self.event_alerters.values():
-            if event.alerter.isRunning():
-                event.alerter.process.terminate()
-                event.alerter.terminate()
+            event.alerter.close_pop_ups()
 
     def update(self):
         # print(QCursor.pos())
@@ -318,9 +435,10 @@ class App:
                 )
 
         for event_alerter in self.event_alerters.values():
-            event_alerter.update(
-                seconds_before_first_alert=self.MINUTES_BEFORE_ALERT * 60
-            )
+            event_alerter.update()
+
+        events = [event_alerter for event_alerter in self.event_alerters.values()]
+        self.main_dialog.update_table_with_events(events)
 
 
 if __name__ == "__main__":

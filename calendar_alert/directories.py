@@ -30,8 +30,8 @@ def get_icon(name: str) -> QIcon:
         name += ".png"
     icon = ICON_CACHE.get(name)
     if not icon:
-        fp = os.path.join(icon_dir(), name)
-        icon = QIcon(fp)
+        file_path = os.path.join(icon_dir(), name)
+        icon = QIcon(file_path)
         ICON_CACHE[name] = icon
     return icon
 
