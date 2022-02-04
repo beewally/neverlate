@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import datetime
 import os
-import sys
 import time
-from ctypes import Union
 from pprint import pprint as pp
-from typing import Any, List, Optional
+from typing import Any
 
 # Google imports
 from google.auth.exceptions import RefreshError
@@ -15,13 +13,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import Resource, build
 
-# Other
-from PySide6.QtCore import QObject, Signal, Slot
-
-from calendar_alert.directories import app_data_dir
-
-# Local imports
-from calendar_alert.utils import now_datetime
+from neverlate.utils import app_local_data_dir, now_datetime
 
 # from googleapiclient.errors import HttpError
 
@@ -36,11 +28,15 @@ class Calendar:
     Google calendar data model
     """
 
-    def __init__(self, data) -> None:
+    summary: str
+    id: str
+    primary: bool
+
+    def __init__(self, data: dict[Any, Any]) -> None:
         self._data = data
         self.id = data["id"]
         self.primary = data.get("primary", False)
-        self.summary = data.get("summaryOverride", data["summary"])
+        self.summary = data.get("summaryOverride", data.get("summary", "<No Title>"))
         self.selected = data.get(
             "selected", False
         )  # Is the user displaying this calendar by default
@@ -66,6 +62,8 @@ class TimeEvent:
     Calendar event data model for time-based events (not all day events).
     """
 
+    calendar: Calendar
+
     def __init__(self, item: dict[Any, Any], calendar: Calendar):
         """
         Create the time event.
@@ -86,7 +84,7 @@ class TimeEvent:
             raise ValueError("Invalid data type - not a calendar event")
         self.calendar = calendar
         self._event = item  # type: dict
-        self.summary = self._event["summary"]
+        self.summary = self._event.get("summary", "<No Title>")
 
         # Get start and end times as datetime objects
         st_time = self._event["start"]["dateTime"]
@@ -162,7 +160,7 @@ class GoogleCalDownloader:  # (QObject):
         # created automatically when the authorization flow completes for the first
         # time.
         cred_file_path = os.path.join(os.path.dirname(__file__), "credentials.json")
-        token_file_path = os.path.join(app_data_dir(), "token.json")
+        token_file_path = os.path.join(app_local_data_dir(), "token.json")
         if os.path.exists(token_file_path):
             creds = Credentials.from_authorized_user_file(token_file_path, SCOPES)
         else:
@@ -182,16 +180,12 @@ class GoogleCalDownloader:  # (QObject):
                         return self.get_credentials()
                         # TODO: alert and terminate
             else:
-                print("HERE WE GO")
-                print(os.path.abspath(os.path.curdir))
-                print("====")
                 flow = InstalledAppFlow.from_client_secrets_file(cred_file_path, SCOPES)
                 creds = flow.run_local_server(port=0)
 
             # Save the credentials for the next run
             with open(token_file_path, "w") as token_file:
                 token_file.write(creds.to_json())
-        print("CREDS", creds, "\nClass:", type(creds))
         return creds
 
     def update_calendars(self) -> None:
@@ -202,6 +196,8 @@ class GoogleCalDownloader:  # (QObject):
                 print("=" * 80)
                 pp(cal)
                 continue
+            if cal.get("deleted"):
+                continue
             cal = Calendar(cal)
             cal_ids.append(cal)
 
@@ -209,7 +205,6 @@ class GoogleCalDownloader:  # (QObject):
 
     def update_events(self) -> None:
         events = []
-        print("=" * 80)
         for calendar in self.calendars:
             events += self.get_events(calendar)
         self.events = events
@@ -252,22 +247,10 @@ class GoogleCalDownloader:  # (QObject):
         result = []
         # Prints the start and name of the next 10 events
         for item in items:
-            # Skip all day events.  All day events have a event['start']['date'] and not a 'dateTime']
-
-            if 0:
-                pp(item)
-                continue
-                if "dateTime" not in item["start"]:
-                    continue
-                # print("=======")
-                print(item["summary"])
-                # print("    ", event.get("endTimeUnspecified"))
-                print("   ", item.get("attendees"))
-                continue
             try:
                 event = TimeEvent(item, calendar)
             except ValueError:
-                print("Invalid event", item["summary"])
+                #  print("Invalid event", item.get("summary", "<No Title>"))
                 continue
             result.append(event)
 
@@ -278,10 +261,3 @@ if __name__ == "__main__":
     gcal = GoogleCalDownloader()
     gcal.update_calendars()
     gcal.update_events()
-
-    for cal in gcal.calendars:
-        continue
-        if cal.primary:
-            events = gcal.get_events(cal)
-            for event in events:
-                print(event)

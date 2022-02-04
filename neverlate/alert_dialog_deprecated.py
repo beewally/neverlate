@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (  # pylint: disable=no-name-in-module
     QWidget,
 )
 
-from calendar_alert.directories import get_icon
+from neverlate.utils import get_icon
 
 
 # TODO: override the default quit (cmd + q)

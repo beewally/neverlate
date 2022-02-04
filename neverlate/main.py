@@ -15,12 +15,12 @@ from PySide6.QtWidgets import (  # pylint: disable=no-name-in-module
     QSystemTrayIcon,
 )
 
-from calendar_alert.constants import APP_NAME
-from calendar_alert.event_alerter import EventAlerter
-from calendar_alert.google_cal_downloader import GoogleCalDownloader
-from calendar_alert.main_dialog import MainDialog
-from calendar_alert.preferences import PreferencesDialog
-from calendar_alert.utils import get_icon
+from neverlate.constants import APP_NAME
+from neverlate.event_alerter import EventAlerter
+from neverlate.google_cal_downloader import GoogleCalDownloader
+from neverlate.main_dialog import MainDialog
+from neverlate.preferences import PreferencesDialog
+from neverlate.utils import get_icon
 
 # TODO: add a column for attending status, join button, reset time alert button
 # TODO: support calendars

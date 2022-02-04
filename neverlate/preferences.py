@@ -1,28 +1,15 @@
 """Main app entry point."""
-import ctypes
-import os
-import subprocess
-import sys
-import time
-from pprint import pprint as pp
-from typing import Any, Optional, Union
 
-from PySide6.QtCore import Qt, QThread, QThreadPool, QTimer, Signal, Slot
-from PySide6.QtGui import QAction, QCursor, QDesktopServices, QWindow
-from PySide6.QtWidgets import (  # pylint: disable=no-name-in-module
-    QApplication,
-    QDialog,
-    QHBoxLayout,
-    QLabel,
-    QMainWindow,
-    QMenu,
+
+from PySide6.QtWidgets import (
+    QDialog,  # pylint: disable=no-name-in-module
     QPushButton,
-    QSystemTrayIcon,
     QVBoxLayout,
-    QWidget,
 )
 
-from calendar_alert.directories import get_icon
+from neverlate.utils import get_icon
+
+# TODO: implement
 
 
 class PreferencesDialog(QDialog):  # pylint: disable=too-few-public-methods

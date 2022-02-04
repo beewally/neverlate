@@ -1,6 +1,6 @@
 import setuptools
 
-APP = ["calendar_alert/finish.py"]
+APP = ["neverlate/main.py"]
 DATA_FILES = []
 OPTIONS = {
     "plist": {"LSUIElement": True},
@@ -10,12 +10,12 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="calendar_alert",
+    name="neverlate",
     app=APP,
     data_files=DATA_FILES,
     options={"py2app": OPTIONS},
     setup_requires=["py2app"],
-    version="0.0.1",
+    version="0.0.2",
     author="Brian Walters",
     author_email="brianrwalters@gmail.com",
     description="In your face notifications for your google calendar events.",
@@ -29,7 +29,7 @@ setuptools.setup(
         "google-auth-oauthlib",
     ],
     packages=[
-        "calendar_alert",
+        "neverlate",
         # "google-api-python-client",
         # "google-auth-httplib2",
         # "google-auth-oauthlib",
@@ -44,7 +44,7 @@ setuptools.setup(
     python_requires=">=3.7",
     entry_points={
         "console_scripts": [
-            "calender_alert=calendar_alert.main:run",
+            "neverlate=neverlate.main:run",
         ]
     },
 )
