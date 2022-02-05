@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (  # pylint: disable=no-name-in-module
     QWidget,
 )
 
-from neverlate.utils import get_icon, now_datetime
+from neverlate.utils import get_icon, now_datetime, pretty_datetime
 
 if typing.TYPE_CHECKING:
     from neverlate.event_alerter import EventAlerter
@@ -109,6 +109,7 @@ class MainDialog(QDialog):
         self.setLayout(main_layout)
 
     def update_table_with_events(self, alerters: list[EventAlerter]):
+        """Update the table with the specified alerter events."""
         # TODO: break this function up
         orig_row_count = self.event_table.rowCount()
         self.event_table.setRowCount(len(alerters))
@@ -124,19 +125,12 @@ class MainDialog(QDialog):
             )
 
             # Start time
-            start_time = alerter.time_event.start_time.strftime("%I:%M")
-            if start_time[0] == "0":
-                start_time = start_time[1:]
-
-            # End time
-            end_time = alerter.time_event.end_time.strftime("%I:%M %p")
-            if end_time[0] == "0":
-                end_time = end_time[1:]
-
+            start_label = pretty_datetime(alerter.time_event.start_time).split()[0]
+            end_label = pretty_datetime(alerter.time_event.end_time)
             self.event_table.setItem(
                 idx,
                 TABLE_EVENT_TIMES,
-                QTableWidgetItem(f"{start_time} - {end_time}"),
+                QTableWidgetItem(f"{start_label} - {end_label}"),
             )
 
             # Time till alert
@@ -194,14 +188,14 @@ class MainDialog(QDialog):
                     item = self.event_table.item(idx, column)
                     if not item:
                         continue
-                    bg = item.background()
-                    bg.setColor(LIGHT_GREY)
-                    fg = item.foreground()
-                    fg.setColor(DARK_GREY)
-                    bg.setStyle(Qt.BrushStyle.SolidPattern)
-                    fg.setStyle(Qt.BrushStyle.SolidPattern)
-                    item.setBackground(bg)
-                    item.setForeground(fg)
+                    background = item.background()
+                    background.setColor(LIGHT_GREY)
+                    foreground = item.foreground()
+                    foreground.setColor(DARK_GREY)
+                    background.setStyle(Qt.BrushStyle.SolidPattern)
+                    foreground.setStyle(Qt.BrushStyle.SolidPattern)
+                    item.setBackground(background)
+                    item.setForeground(foreground)
             elif alerter.time_event.start_time < now < alerter.time_event.end_time:
                 # Meeting is happening
                 for column in range(self.event_table.columnCount()):
@@ -221,14 +215,14 @@ class MainDialog(QDialog):
                         )
                         palette.setColor(widget.backgroundRole(), bg_color)
                         continue
-                    bg = item.background()
-                    fg = item.foreground()
-                    fg.setColor(BLACK)
-                    bg.setColor(bg_color)
-                    bg.setStyle(Qt.BrushStyle.SolidPattern)
-                    fg.setStyle(Qt.BrushStyle.SolidPattern)
-                    item.setBackground(bg)
-                    item.setForeground(fg)
+                    background = item.background()
+                    foreground = item.foreground()
+                    foreground.setColor(BLACK)
+                    background.setColor(bg_color)
+                    background.setStyle(Qt.BrushStyle.SolidPattern)
+                    foreground.setStyle(Qt.BrushStyle.SolidPattern)
+                    item.setBackground(background)
+                    item.setForeground(foreground)
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
@@ -238,14 +232,14 @@ class MainDialog(QDialog):
                     item = self.event_table.item(idx, column)
                     if not item:
                         continue
-                    bg = item.background()
-                    bg.setColor(LIGHT_YELLOW)
-                    fg = item.foreground()
-                    fg.setColor(BLACK)
-                    bg.setStyle(Qt.BrushStyle.SolidPattern)
-                    fg.setStyle(Qt.BrushStyle.SolidPattern)
-                    item.setBackground(bg)
-                    item.setForeground(fg)
+                    background = item.background()
+                    background.setColor(LIGHT_YELLOW)
+                    foreground = item.foreground()
+                    foreground.setColor(BLACK)
+                    background.setStyle(Qt.BrushStyle.SolidPattern)
+                    foreground.setStyle(Qt.BrushStyle.SolidPattern)
+                    item.setBackground(background)
+                    item.setForeground(foreground)
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
@@ -255,14 +249,14 @@ class MainDialog(QDialog):
                     item = self.event_table.item(idx, column)
                     if not item:
                         continue
-                    bg = item.background()
-                    bg.setColor(WHITE)
-                    fg = item.foreground()
-                    fg.setColor(BLACK)
-                    bg.setStyle(Qt.BrushStyle.SolidPattern)
-                    fg.setStyle(Qt.BrushStyle.SolidPattern)
-                    item.setBackground(bg)
-                    item.setForeground(fg)
+                    background = item.background()
+                    background.setColor(WHITE)
+                    foreground = item.foreground()
+                    foreground.setColor(BLACK)
+                    background.setStyle(Qt.BrushStyle.SolidPattern)
+                    foreground.setStyle(Qt.BrushStyle.SolidPattern)
+                    item.setBackground(background)
+                    item.setForeground(foreground)
                     font = item.font()
                     item.setFont(font)
 

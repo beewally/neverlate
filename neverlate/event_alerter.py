@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import os
 import subprocess
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import Optional
 
 from PySide6.QtCore import QThread, Signal, Slot
 
@@ -18,6 +19,9 @@ MINUTES_BEFORE_ALERT = 10  # TODO: make this a preference
 
 
 class EventAlerter:
+    """Alert about a timed event."""
+
+    _snooze_until_time: Optional(datetime)
     time_event: TimeEvent
     has_alerted: bool  # Trure if an alert has been displayed ever
     dismissed_alerts: bool  # True if the user has dismissed the alert dialog
@@ -30,6 +34,7 @@ class EventAlerter:
         self._alerter = PopUpAlerterThread(self.time_event)
         self._alerter.dismissed_signal.connect(self._dismiss_alerts)
         self._alerter.snooze_signal.connect(self.snooze)
+        self._snooze_until_time = None
 
     @Slot()
     def _dismiss_alerts(self):
@@ -55,7 +60,7 @@ class EventAlerter:
         Args:
             seconds (int): How many seconds to snooze for.
         """
-        self.time_event.start_time = now_datetime() + timedelta(seconds=seconds)
+        self._snooze_until_time = now_datetime() + timedelta(seconds=seconds)
 
     def time_till_alert(self) -> int:
         """Seconds until a notification should appear.
@@ -63,7 +68,6 @@ class EventAlerter:
         Returns:
             int: Seconds till event. Less than zero = do not alert.
         """
-        padding = 0 if self.has_alerted else MINUTES_BEFORE_ALERT * 60
         if (
             self.dismissed_alerts
             or self.time_event.has_declined()
@@ -71,6 +75,10 @@ class EventAlerter:
             or self._alerter.isRunning()  # Already alerted
         ):
             return -1
+        if self.has_alerted and self._snooze_until_time:
+            secs_till_alert = (self._snooze_until_time - now_datetime()).total_seconds()
+            return max(0, int(secs_till_alert))
+        padding = 0 if self.has_alerted else MINUTES_BEFORE_ALERT * 60
         secs_till_alert = (self.time_event.start_time - now_datetime()).total_seconds()
         return max(0, int(secs_till_alert) - padding)
 
@@ -96,6 +104,7 @@ class EventAlerter:
 
 
 class PopUpAlerterThread(QThread):
+    """Thread to monitor subprocess of an alert dialog."""
 
     APP_PATH = os.path.join(os.path.dirname(__file__), "pop_up_alert.py")
     process: subprocess.Popen
@@ -113,10 +122,14 @@ class PopUpAlerterThread(QThread):
             self.terminate()
 
     def run(self):
-
-        # stdout, stderr = self.process.communicate()
+        """Main function to spawn a dialog and wait for it to be closed."""
+        imp_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        imp_path = (
+            "DISABLED"  # TODO: verify this is no longer needed on all operating systems
+        )
         cmd = ["python", self.APP_PATH]
         cmd += [
+            imp_path,
             self.time_event.summary,
             self.time_event.start_time.isoformat(),
             self.time_event.get_video_url(),

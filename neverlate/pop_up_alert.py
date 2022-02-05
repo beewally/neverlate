@@ -15,6 +15,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+# imp_path = sys.argv[1]
+# sys.path.append(imp_path)
+# for path in sys.path:
+#     print(path)
 from neverlate.constants import APP_NAME, OUTPUT_DISMISS, OUTPUT_SNOOZE
 from neverlate.utils import get_icon, now_datetime, pretty_datetime
 
@@ -27,6 +31,8 @@ FONT_SIZE_MULTIPLIER = 1  # Multiply font size
 
 
 class AlertDialog(QDialog):
+    """Pop up alert dialog."""
+
     def __init__(self, title: str, start_time: str, video_uri: str) -> None:
         super().__init__()
         self.start_time = datetime.fromisoformat(start_time)
@@ -42,6 +48,8 @@ class AlertDialog(QDialog):
         self.standard_font_size = self.time_to_event_label.font().pointSize()
         self.time_to_event_label.setAlignment(Qt.AlignCenter)
 
+        self.button_accept = QPushButton("Dismiss")
+        self.button_accept.clicked.connect(self.dismiss)
         self.button_join = QPushButton("Joing Meeting")
         if "meet.google" in self.video_uri:
             self.button_join.setText("Join Meeting (Google Meet)")
@@ -74,11 +82,22 @@ class AlertDialog(QDialog):
         self.kill_timer.setSingleShot(True)
         self.kill_timer.start(RESTART_TIMER)
 
+        self.enable_widgets_timer = QTimer()
+        self.enable_widgets_timer.timeout.connect(self.enable_widgets)
+        self.enable_widgets_timer.start(0.75 * 1000)
+        self.enable_widgets(value=False)
+
         # self.setWindowFlags(Qt.FramelessWindowHint)
         self.layout_ui(title)
         self.update_ui()
 
+    def enable_widgets(self, value: bool = True):
+        """Enable buttons.  Auto fired after the app is opened."""
+        self.button_join.setEnabled(value)
+        self.button_accept.setEnabled(value)
+
     def layout_ui(self, title: str):
+        """Define the main UI layout."""
         main_layout = QVBoxLayout()
         self.setLayout(main_layout)
 
@@ -99,8 +118,6 @@ class AlertDialog(QDialog):
         button_t3.clicked.connect(lambda: self.snooze(3))
         button_t1 = QPushButton("Snooze for 1 minute")
         button_t1.clicked.connect(lambda: self.snooze(1))
-        button_accept = QPushButton("Dismiss")
-        button_accept.clicked.connect(self.dismiss)
         buttons_layout.addStretch()
         # buttons_layout.addWidget(button_t3)
         # buttons_layout.addWidget(button_t1)
@@ -109,7 +126,7 @@ class AlertDialog(QDialog):
         buttons_layout.addSpacing(50)
         # buttons_layout.addStretch()
         buttons_layout.addWidget(self.button_join)
-        buttons_layout.addWidget(button_accept)
+        buttons_layout.addWidget(self.button_accept)
         buttons_layout.addStretch()
 
         main_layout.addSpacing(15)
@@ -122,10 +139,12 @@ class AlertDialog(QDialog):
         self.snooze(0)
 
     def dismiss_and_join(self):
+        """Dismiss teh alert, and open the video URI link in a web browser."""
         webbrowser.open(self.video_uri, autoraise=True)
         self.dismiss()
 
     def dismiss(self):
+        """Dismiss the alert permanently."""
         print(OUTPUT_DISMISS)
         sys.exit(0)
 
@@ -165,7 +184,7 @@ class AlertDialog(QDialog):
                 )
 
     def update_ui(self):
-
+        """Update the UI."""
         # If the user is observing the dialog, restart the kill timer
         if self.underMouse():
             self.kill_timer.start(RESTART_TIMER)
@@ -207,16 +226,19 @@ class AlertDialog(QDialog):
             self.time_to_event_label.setText(f"Time to event: {hrs}{min_}:{sec}")
 
     def snooze(self, minutes: float):
+        """Close the dialog and snooze for X minutes."""
         print(f"{OUTPUT_SNOOZE} {int(minutes * 60)}")
         sys.exit(0)
 
     @Slot(str)
     def snooze_for_combo_box_changed(self, new_text: str):
+        """Callback when the snooze for comobo box is changed."""
         minutes = int(new_text.split()[0])
         self.snooze(minutes)
 
     @Slot(int)
     def snooze_until_combo_box_changed(self, new_idx: int):
+        """Callback when the snooze until combo box is changed."""
         minutes_before = SNOOZE_UNTIL_MINUTES[new_idx]
         next_alert_time = self.start_time - timedelta(minutes=minutes_before)
         time_to_snooze = now_datetime() - next_alert_time
@@ -234,6 +256,6 @@ if __name__ == "__main__":
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
     app.setWindowIcon(get_icon("tray_icon.png"))  # Mac OSX
-    d = AlertDialog(*sys.argv[1:])  # pylint: disable=no-value-for-parameter
+    d = AlertDialog(*sys.argv[2:])  # pylint: disable=no-value-for-parameter
     d.show()
     app.exec()

@@ -25,16 +25,25 @@ from neverlate.utils import get_icon
 # TODO: add a column for attending status, join button, reset time alert button
 # TODO: support calendars
 # TODO: support preferences
+# TODO: make it prettier for mac osx dark theme (just handle/bypass OS themes altogether?)
 
 MINUTES_BEFORE_ALERT = 10  # TODO: make this a preference
 
 
 class UpdateCalendar(QThread):
+    """Thread to download google calendars + events."""
+
     def __init__(self, calendar: GoogleCalDownloader) -> None:
         super().__init__()
         self.calendar = calendar
 
     def run(self):
+        """Main entry point.
+
+        Raises:
+            RefreshError: When unable to download the calendar events for some reason.
+        """
+        # TODO: handle internet outtage/unresponsive google (in addition to token expirations)
         try:
             self.calendar.update_calendars()
             self.calendar.update_events()
@@ -107,11 +116,6 @@ class App:
         )
         # self.tray.showMessage("fuga", "moge")
 
-    def close_all_pop_ups(self):
-
-        for event in self.event_alerters.values():
-            event._alerter.close_pop_ups()
-
     def on_update_now(self):
         """User manually requested the calanders be re-downloaded."""
         self.update_calendar_thread.start()
@@ -121,10 +125,12 @@ class App:
         """Quitting the app. Make sure we terminate all threads first."""
         self.update_calendar_thread.finished.disconnect()
         self.update_calendar_thread.terminate()
-        self.close_all_pop_ups()
+        for event in self.event_alerters.values():
+            event._alerter.close_pop_ups()
         # self.thread.wait()
 
     def run(self):
+        """Start the application."""
         if hasattr(ctypes, "windll"):
             # Rename the process so we can get a better icon.
             myappid = f"bw.{APP_NAME.lower()}.1"  # arbitrary string
@@ -152,12 +158,16 @@ class App:
             del self.event_alerters[id]
 
     def thread_download_calendar_started(self):
-
+        """Called when the thread to download calendars + events is triggered. Updates the UI accordingly."""
         self.main_dialog.time_to_update_label.setText("Updating events...")
         self.main_dialog.update_now_button.setEnabled(False)
 
     @Slot()
     def tray_clicked(self, reason: QSystemTrayIcon.ActivationReason):
+        """Callback when the user clicks on the tray icon in the task bar. Should show various options/show the
+        main GUI.
+        """
+        # TODO: make this work across multiple OS'es properly.
         print("CLICK", reason)
         # reason == QSystemTrayIcon.ActivationReason.Trigger
 
@@ -192,7 +202,8 @@ class App:
         # self.main_dialog.setSizePolicy(QSizePolicy.Expanding)
 
 
-def run():  # Entry point for setup.py
+def run():
+    """Console tool entry point/ when run as __main__"""
     app = App()
     app.run()
 
