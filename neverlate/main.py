@@ -1,4 +1,5 @@
 """Main app entry point."""
+# pylint: disable=no-name-in-module
 from __future__ import annotations
 
 import ctypes
@@ -6,14 +7,8 @@ import sys
 import time
 
 from google.auth.exceptions import RefreshError
-from PySide6.QtCore import QRect  # pylint: disable=no-name-in-module
-from PySide6.QtCore import Qt  # pylint: disable=no-name-in-module
-from PySide6.QtCore import QThread, QTimer, Slot
-from PySide6.QtWidgets import (  # pylint: disable=no-name-in-module
-    QApplication,
-    QMenu,
-    QSystemTrayIcon,
-)
+from PySide6.QtCore import QRect, Qt, QThread, QTimer, Slot
+from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from neverlate.constants import APP_NAME
 from neverlate.event_alerter import EventAlerter
@@ -99,10 +94,10 @@ class App:
 
     def _setup_tray(self) -> None:
         menu = QMenu()
-        settingAction = menu.addAction("Preferences")
-        settingAction.triggered.connect(self.preferences_dialog.show)
-        exitAction = menu.addAction("Quit")
-        exitAction.triggered.connect(self.app.exit)
+        setting_action = menu.addAction("Preferences")
+        setting_action.triggered.connect(self.preferences_dialog.show)
+        exit_action = menu.addAction("Quit")
+        exit_action.triggered.connect(self.app.exit)
         self.tray = QSystemTrayIcon()
         self.tray.activated.connect(self.tray_clicked)
         self.tray.setIcon(get_icon("tray_icon.png"))
@@ -153,9 +148,9 @@ class App:
             else:
                 self.event_alerters[time_event.id].time_event = time_event
 
-        for id in set(self.event_alerters) - cur_event_ids:
-            self.event_alerters[id]._alerter.close_pop_ups()
-            del self.event_alerters[id]
+        for id_ in set(self.event_alerters) - cur_event_ids:
+            self.event_alerters[id_]._alerter.close_pop_ups()
+            del self.event_alerters[id_]
 
     def thread_download_calendar_started(self):
         """Called when the thread to download calendars + events is triggered. Updates the UI accordingly."""
