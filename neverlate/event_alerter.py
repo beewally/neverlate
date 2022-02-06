@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+# pylint: disable=no-name-in-module
 import os
 import subprocess
 from datetime import datetime, timedelta
@@ -21,7 +22,7 @@ MINUTES_BEFORE_ALERT = 10  # TODO: make this a preference
 class EventAlerter:
     """Alert about a timed event."""
 
-    _snooze_until_time: Optional(datetime)
+    _snooze_until_time: Optional[datetime]
     time_event: TimeEvent
     has_alerted: bool  # Trure if an alert has been displayed ever
     dismissed_alerts: bool  # True if the user has dismissed the alert dialog

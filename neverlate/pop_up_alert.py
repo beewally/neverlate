@@ -1,4 +1,4 @@
-# make stdin a non-blocking file
+# pylint: disable=no-name-in-module
 import ctypes
 import sys
 import webbrowser
