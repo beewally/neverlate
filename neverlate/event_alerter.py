@@ -4,6 +4,7 @@ from __future__ import annotations
 # pylint: disable=no-name-in-module
 import os
 import subprocess  # nosec
+import sys
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -52,9 +53,8 @@ class EventAlerter:
 
     def reset_alert(self):
         """
-        Reset any alerts.
+        Reset any alerts. Used by the user to get a once-dismissed pop-up to appear again.
         """
-        print("RESET ALERTS!")
         self.close_pop_up()
         self.dismissed_alerts = False
         self.has_alerted = False
@@ -136,12 +136,14 @@ class PopUpAlerterThread(QThread):
             self.time_event.start_time.isoformat(),
             self.time_event.get_video_url(),
         ]
+        #  If MacOSX, no shell. If Windows, use shell. Linux = ??.  Otherwise pop-ups don't work. Not too sure why.
+        use_shell = sys.platform == "win32"
         self.process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            shell=True,
-        )  # nosec
+            shell=use_shell,  # nosec
+        )
         result = self.process.wait()
         output = self.process.stdout.read().decode()  # type: str
         err = self.process.stderr.read().decode()
@@ -150,7 +152,8 @@ class PopUpAlerterThread(QThread):
             print("ERROR:", err)
             return
         else:
-            print("Closed event, output:", output)
+            if len(output.splitlines()) > 1:
+                print("Closed event, output:", output)
             output = output.splitlines()[-1] if output else ""
             if output.startswith(OUTPUT_SNOOZE):
                 snooze_time = int(output.split()[-1])
