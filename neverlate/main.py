@@ -10,6 +10,7 @@ from google.auth.exceptions import RefreshError
 from PySide6.QtCore import QRect, Qt, QThread, QTimer, Slot
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
+from neverlate import event_alerter
 from neverlate.constants import APP_NAME
 from neverlate.event_alerter import EventAlerter
 from neverlate.google_cal_downloader import GoogleCalDownloader
@@ -21,8 +22,6 @@ from neverlate.utils import get_icon
 # TODO: support calendars
 # TODO: support preferences
 # TODO: make it prettier for mac osx dark theme (just handle/bypass OS themes altogether?)
-
-MINUTES_BEFORE_ALERT = 10  # TODO: make this a preference
 
 
 class UpdateCalendar(QThread):
@@ -121,8 +120,7 @@ class App:
         self.update_calendar_thread.finished.disconnect()
         self.update_calendar_thread.terminate()
         for event in self.event_alerters.values():
-            event._alerter.close_pop_ups()
-        # self.thread.wait()
+            event.close_pop_up()
 
     def run(self):
         """Start the application."""
@@ -149,7 +147,7 @@ class App:
                 self.event_alerters[time_event.id].time_event = time_event
 
         for id_ in set(self.event_alerters) - cur_event_ids:
-            self.event_alerters[id_]._alerter.close_pop_ups()
+            self.event_alerters[id_].close_pop_up()
             del self.event_alerters[id_]
 
     def thread_download_calendar_started(self):

@@ -15,10 +15,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-# imp_path = sys.argv[1]
-# sys.path.append(imp_path)
-# for path in sys.path:
-#     print(path)
 from neverlate.constants import APP_NAME, OUTPUT_DISMISS, OUTPUT_SNOOZE
 from neverlate.utils import get_icon, now_datetime, pretty_datetime
 
@@ -256,6 +252,6 @@ if __name__ == "__main__":
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
     app.setWindowIcon(get_icon("tray_icon.png"))  # Mac OSX
-    d = AlertDialog(*sys.argv[2:])  # pylint: disable=no-value-for-parameter
+    d = AlertDialog(*sys.argv[1:])  # pylint: disable=no-value-for-parameter
     d.show()
     app.exec()

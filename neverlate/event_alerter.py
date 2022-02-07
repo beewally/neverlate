@@ -1,8 +1,9 @@
+"""Module for displaying alerts to the user."""
 from __future__ import annotations
 
 # pylint: disable=no-name-in-module
 import os
-import subprocess
+import subprocess  # nosec
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -11,10 +12,6 @@ from PySide6.QtCore import QThread, Signal, Slot
 from neverlate.constants import OUTPUT_DISMISS, OUTPUT_SNOOZE
 from neverlate.google_cal_downloader import TimeEvent
 from neverlate.utils import now_datetime
-
-# TODO: add a column for attending status, join button, reset time alert button
-# TODO: support calendars
-# TODO: support preferences
 
 MINUTES_BEFORE_ALERT = 10  # TODO: make this a preference
 
@@ -44,12 +41,21 @@ class EventAlerter:
         """
         self.dismissed_alerts = True
 
+    def close_pop_up(self):
+        """Close any pop-up dialog threads.  Call before terminating."""
+        try:
+            if self._alerter.isRunning():
+                self._alerter.process.terminate()
+                self._alerter.terminate()
+        except RuntimeError:
+            pass
+
     def reset_alert(self):
         """
         Reset any alerts.
         """
         print("RESET ALERTS!")
-        self._alerter.close_pop_ups()
+        self.close_pop_up()
         self.dismissed_alerts = False
         self.has_alerted = False
 
@@ -84,6 +90,7 @@ class EventAlerter:
         return max(0, int(secs_till_alert) - padding)
 
     def update(self):
+        """General function that should be called regularly to see if it should display an alert."""
         secs_till = self.time_till_alert()
         if secs_till != 0:
             return
@@ -92,6 +99,10 @@ class EventAlerter:
         self._alerter.start()
 
     def will_alert(self) -> bool:
+        """Certain events will not alert (the user isn't attending, the meeting has ended already,
+        the user dismissed the dialog, etc.  This function returns 'True' if this meeting will
+        not alert.
+        """
         # fmt: off
         if (
             self.dismissed_alerts
@@ -117,20 +128,10 @@ class PopUpAlerterThread(QThread):
 
         self.time_event = time_event
 
-    def close_pop_ups(self):
-        if self.isRunning():
-            self.process.terminate()
-            self.terminate()
-
     def run(self):
         """Main function to spawn a dialog and wait for it to be closed."""
-        imp_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        imp_path = (
-            "DISABLED"  # TODO: verify this is no longer needed on all operating systems
-        )
         cmd = ["python", self.APP_PATH]
         cmd += [
-            imp_path,
             self.time_event.summary,
             self.time_event.start_time.isoformat(),
             self.time_event.get_video_url(),
@@ -139,8 +140,8 @@ class PopUpAlerterThread(QThread):
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            # shell=True,
-        )
+            shell=True,
+        )  # nosec
         result = self.process.wait()
         output = self.process.stdout.read().decode()  # type: str
         err = self.process.stderr.read().decode()

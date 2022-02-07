@@ -32,6 +32,7 @@ def app_local_data_dir() -> str:
 
 
 def get_icon(name: str) -> QIcon:
+    """Get an icon."""
     icon_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
     if not name.endswith(".png"):
         name += ".png"
@@ -49,6 +50,7 @@ def now_datetime() -> datetime.datetime:
 
 
 def pretty_datetime(dt: datetime.datetime) -> str:
+    """Converts a date time to a a pretty syntax, e.g.: '4:33 PM'."""
     label = dt.strftime("%I:%M %p")
     if label[0] == "0":
         label = label[1:]
