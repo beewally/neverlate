@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="neverlate",
-    version="0.0.1",
+    version="0.0.2",
     author="Brian Walters",
     author_email="brianrwalters@gmail.com",
     description="In your face notifications you can't miss for Google Calendar Events.",
@@ -34,6 +34,7 @@ setuptools.setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
+        "Development Status :: 4 - Beta",
     ],
     python_requires=">=3.7",
     entry_points={
