@@ -55,3 +55,9 @@ def pretty_datetime(dt: datetime.datetime) -> str:
     if label[0] == "0":
         label = label[1:]
     return label
+
+
+def seconds_to_min_sec(seconds: int) -> str:
+    """Convert seconds to min:sec (e.g. 105 -> '1:45'."""
+    min_, secs = divmod(seconds, 60)
+    return f"{min_}:{secs}"

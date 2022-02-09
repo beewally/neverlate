@@ -15,8 +15,9 @@ from neverlate.constants import APP_NAME
 from neverlate.event_alerter import EventAlerter
 from neverlate.google_cal_downloader import GoogleCalDownloader
 from neverlate.main_dialog import MainDialog
-from neverlate.preferences import PreferencesDialog
-from neverlate.utils import get_icon, now_datetime
+from neverlate.preferences import PREFERENCES
+from neverlate.preferences_dialog import PreferencesDialog
+from neverlate.utils import get_icon, now_datetime, seconds_to_min_sec
 
 # TODO: add a column for attending status, join button, reset time alert button
 # TODO: support calendars
@@ -29,7 +30,7 @@ class UpdateCalendar(QThread):
 
     def __init__(self, calendar: GoogleCalDownloader) -> None:
         super().__init__()
-        self.calendar = calendar
+        self.gcal = calendar
 
     def run(self):
         """Main entry point.
@@ -39,8 +40,13 @@ class UpdateCalendar(QThread):
         """
         # TODO: handle internet outtage/unresponsive google (in addition to token expirations)
         try:
-            self.calendar.update_calendars()
-            self.calendar.update_events()
+            self.gcal.update_calendars()
+            calendars_to_update = [
+                cal
+                for cal in self.gcal.calendars
+                if cal.id not in PREFERENCES.disabled_calendars
+            ]
+            self.gcal.update_events(calendars_to_update)
         except RefreshError:
             print("BAD THINGS HAVE HAPPENED AND NEED TO BE FIXED")
             raise
@@ -55,8 +61,6 @@ class UpdateCalendar(QThread):
 
 class App:
     """Main Qt application."""
-
-    UPDATE_FREQUENCY = 60  # seconds to wait before downloading new events
 
     tray: QSystemTrayIcon
 
@@ -102,7 +106,7 @@ class App:
         main_dialog_action = menu.addAction("Show Overview")
         main_dialog_action.triggered.connect(self.show_main_dialog)
         setting_action = menu.addAction("Show Preferences")
-        setting_action.triggered.connect(self.preferences_dialog.show)
+        setting_action.triggered.connect(self.show_preferences_dialog)
         exit_action = menu.addAction("Quit")
         exit_action.triggered.connect(self.app.exit)
         self.tray = QSystemTrayIcon()
@@ -163,6 +167,11 @@ class App:
         self.main_dialog.show()
         self.main_dialog.activateWindow()
 
+    def show_preferences_dialog(self):
+        """Show the preferences dialog. Make sure it has the latest calendars."""
+        self.preferences_dialog.update_calendars(self.gcal.calendars)
+        self.preferences_dialog.show()
+
     def thread_download_calendar_finished(self):
         """
         Called when the update thread is finished - all google calendars and events have been donwloaded.
@@ -210,21 +219,26 @@ class App:
         """Main update thread that should be continuously running."""
         # print(QCursor.pos())
         if self.update_calendar_thread.isFinished():
-            time_to_update = self.UPDATE_FREQUENCY - (
+            time_to_update = (PREFERENCES.download_cal_freq * 60) - (
                 time.time() - self.gcal.last_update_time
             )
             if time_to_update <= 0:
                 self.update_calendar_thread.start()
             else:
+                time_label = seconds_to_min_sec(int(time_to_update))
                 self.main_dialog.time_to_update_label.setText(
-                    f"Updating events in {time_to_update:.0f} seconds"
+                    f"Updating events in {time_label}"
                 )
 
+        display_events = []
         for event_alerter in self.event_alerters.values():
-            event_alerter.update()
+            if event_alerter.time_event.calendar.id in PREFERENCES.disabled_calendars:
+                event_alerter.close_pop_up()
+            else:
+                event_alerter.update()
+                display_events.append(event_alerter)
 
-        events = [event_alerter for event_alerter in self.event_alerters.values()]
-        self.main_dialog.update_table_with_events(events)
+        self.main_dialog.update_table_with_events(display_events)
         # self.main_dialog.setSizePolicy(QSizePolicy.Expanding)
 
 

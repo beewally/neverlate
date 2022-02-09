@@ -5,7 +5,7 @@ import json
 import os
 import time
 from pprint import pprint as pp
-from typing import Any
+from typing import Any, Optional
 
 # Google imports
 from google.auth.exceptions import RefreshError
@@ -140,6 +140,8 @@ class TimeEvent:
 
 
 class GoogleCalDownloader:  # (QObject):
+    """Interface with Google. Credentials, downloading calendars, and downloading events."""
+
     primary_calendar: Calendar  # TODO: not used?
     calendars: list[Calendar] = []
     events: list[TimeEvent] = []
@@ -204,9 +206,12 @@ class GoogleCalDownloader:  # (QObject):
 
         self.calendars = cal_ids
 
-    def update_events(self) -> None:
+    def update_events(self, calendars: Optional[list[Calendar]] = None) -> None:
         events = []
-        for calendar in self.calendars:
+        if calendars is None:
+            calendars = self.calendars
+
+        for calendar in calendars:
             events += self.get_events(calendar)
         self.events = events
         self.last_update_time = time.time()

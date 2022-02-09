@@ -12,9 +12,8 @@ from PySide6.QtCore import QThread, Signal, Slot
 
 from neverlate.constants import OUTPUT_DISMISS, OUTPUT_SNOOZE
 from neverlate.google_cal_downloader import TimeEvent
+from neverlate.preferences import PREFERENCES
 from neverlate.utils import now_datetime
-
-MINUTES_BEFORE_ALERT = 10  # TODO: make this a preference
 
 
 class EventAlerter:
@@ -85,7 +84,7 @@ class EventAlerter:
         if self.has_alerted and self._snooze_until_time:
             secs_till_alert = (self._snooze_until_time - now_datetime()).total_seconds()
             return max(0, int(secs_till_alert))
-        padding = 0 if self.has_alerted else MINUTES_BEFORE_ALERT * 60
+        padding = 0 if self.has_alerted else PREFERENCES.alert_padding * 60
         secs_till_alert = (self.time_event.start_time - now_datetime()).total_seconds()
         return max(0, int(secs_till_alert) - padding)
 
