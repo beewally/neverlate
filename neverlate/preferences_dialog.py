@@ -3,9 +3,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtWidgets import (QCheckBox, QDialog, QFormLayout, QHBoxLayout,
-                               QLabel, QPushButton, QScrollArea, QSpinBox,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from neverlate.preferences import PREFERENCES
 from neverlate.utils import get_icon
@@ -87,11 +96,9 @@ class PreferencesDialog(QDialog):  # pylint: disable=too-few-public-methods
         """Save the preferences and close the dialog."""
         PREFERENCES.alert_padding = self.alert_padding_sb.value()
         PREFERENCES.download_cal_freq = self.download_cal_freq_sb.value()
-        PREFERENCES.disabled_calendars = [
-            id_
-            for id_, toggle in self.calendar_toggles.items()
-            if not toggle.isChecked()
-        ]
+        PREFERENCES.calendar_visibility = {
+            id_: toggle.isChecked() for id_, toggle in self.calendar_toggles.items()
+        }
 
         PREFERENCES.save()
         self.close()
@@ -121,7 +128,12 @@ class PreferencesDialog(QDialog):  # pylint: disable=too-few-public-methods
                 if calendar.primary
                 else calendar.summary
             )
-            toggle.setChecked(calendar.id not in PREFERENCES.disabled_calendars)
+            if calendar.id not in PREFERENCES.calendar_visibility:
+                visibility = True
+            else:
+                visibility = PREFERENCES.calendar_visibility[calendar.id]
+
+            toggle.setChecked(visibility)
             toggle.setToolTip(f"ID: {calendar.id}")
             self.calendar_toggles[calendar.id] = toggle
             scroll_layout.addWidget(toggle)

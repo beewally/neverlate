@@ -15,12 +15,12 @@ class _Preferences:
     )
 
     alert_padding: int  # Minutes before an event that an alert should be displayed
-    disabled_calendars: list[str]  # Calendars that should NOT be enabled by default
+    calendar_visibility: dict[str, bool]  # Wether the calendar is enabled or not
     download_cal_freq: int  # Frequency in minutes that the calendar + events are downloaded
 
     def __init__(self) -> None:
         self.alert_padding = 5
-        self.disabled_calendars = []
+        self.calendar_visibility = {}  # ty
         self.download_cal_freq = 5
 
     def deserialize(self, **kwargs: Any):
@@ -45,13 +45,13 @@ class _Preferences:
         """Save the preferences to disk."""
         data = self.serialize()
         with open(self._pref_file_path, "w") as pref_file:
-            json.dump(data, pref_file)
+            json.dump(data, pref_file, sort_keys=True, indent=4)
 
     def serialize(self) -> dict[str, Any]:
         """Save preferences to a dictionary."""
         return {
             "alert_padding": self.alert_padding,
-            "disabled_calendars": self.disabled_calendars,
+            "calendar_visibility": self.calendar_visibility,
             "download_cal_freq": self.download_cal_freq,
         }
 

@@ -44,7 +44,7 @@ class UpdateCalendar(QThread):
             calendars_to_update = [
                 cal
                 for cal in self.gcal.calendars
-                if cal.id not in PREFERENCES.disabled_calendars
+                if PREFERENCES.calendar_visibility.get(cal.id, cal.selected)
             ]
             self.gcal.update_events(calendars_to_update)
         except RefreshError:
@@ -176,7 +176,20 @@ class App:
         """
         Called when the update thread is finished - all google calendars and events have been donwloaded.
         """
+        # Check if new calendars need to be saved
+        save_prefs = False
+        for cal in self.gcal.calendars:
+            if cal.id not in PREFERENCES.calendar_visibility:
+                PREFERENCES.calendar_visibility[cal.id] = cal.selected
+                save_prefs = True
+
+        if save_prefs:
+            PREFERENCES.save()
+
+        # Update the GUI
         self.main_dialog.update_now_button.setEnabled(True)
+
+        # Process new/old events (close pop-ups for deleted events)
         cur_event_ids = {event.id for event in self.gcal.events}
         for time_event in self.gcal.events:
             if time_event.id not in self.event_alerters:
@@ -232,7 +245,11 @@ class App:
 
         display_events = []
         for event_alerter in self.event_alerters.values():
-            if event_alerter.time_event.calendar.id in PREFERENCES.disabled_calendars:
+            if not PREFERENCES.calendar_visibility.get(
+                event_alerter.time_event.calendar.id, False
+            ):
+                # Calendar is not enabled, close pop-ups and move on
+                # TODO: broken?
                 event_alerter.close_pop_up()
             else:
                 event_alerter.update()
