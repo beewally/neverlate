@@ -5,18 +5,18 @@ from __future__ import annotations
 import ctypes
 import sys
 import time
+import traceback
 
 from google.auth.exceptions import RefreshError
 from PySide6.QtCore import QRect, Qt, QThread, QTimer, Slot
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from neverlate import event_alerter
 from neverlate.constants import APP_NAME
 from neverlate.event_alerter import EventAlerter
 from neverlate.google_cal_downloader import GoogleCalDownloader
 from neverlate.main_dialog import MainDialog
 from neverlate.preferences import PreferencesDialog
-from neverlate.utils import get_icon
+from neverlate.utils import get_icon, now_datetime
 
 # TODO: add a column for attending status, join button, reset time alert button
 # TODO: support calendars
@@ -44,6 +44,13 @@ class UpdateCalendar(QThread):
         except RefreshError:
             print("BAD THINGS HAVE HAPPENED AND NEED TO BE FIXED")
             raise
+        except ConnectionResetError:
+            print("!!!!!!!!!!! CONNETION RESET ERROR!!!!!!!!!!!!!!", now_datetime())
+        except:
+            print("=" * 80)
+            print(traceback.format_exc())
+            print("=" * 80)
+            print("Unknown bad things have happened!!", now_datetime())
 
 
 class App:
@@ -59,7 +66,6 @@ class App:
         self.app.aboutToQuit.connect(self.quitting)
         self.app.setQuitOnLastWindowClosed(False)
         self.main_dialog = MainDialog()
-        self.main_dialog.quit_button.clicked.connect(self.app.quit)
         self.main_dialog.update_now_button.clicked.connect(self.on_update_now)
 
         # Size of initial window
@@ -93,7 +99,9 @@ class App:
 
     def _setup_tray(self) -> None:
         menu = QMenu()
-        setting_action = menu.addAction("Preferences")
+        main_dialog_action = menu.addAction("Show Overview")
+        main_dialog_action.triggered.connect(self.show_main_dialog)
+        setting_action = menu.addAction("Show Preferences")
         setting_action.triggered.connect(self.preferences_dialog.show)
         exit_action = menu.addAction("Quit")
         exit_action.triggered.connect(self.app.exit)
@@ -102,13 +110,12 @@ class App:
         self.tray.setIcon(get_icon("tray_icon.png"))
         self.tray.setContextMenu(menu)
         self.tray.show()
-        self.tray.setToolTip("Bwalters was here!")
-        self.tray.showMessage(
-            "My Great Title",
-            "You're late for an event!",
-            get_icon("tray_icon.png"),
-        )
-        # self.tray.showMessage("fuga", "moge")
+        self.tray.setToolTip("Never late!")
+        # self.tray.showMessage(
+        #     "My Great Title",
+        #     "You're late for an event!",
+        #     get_icon("tray_icon.png"),
+        # )
 
     def on_update_now(self):
         """User manually requested the calanders be re-downloaded."""
@@ -128,11 +135,33 @@ class App:
             # Rename the process so we can get a better icon.
             myappid = f"bw.{APP_NAME.lower()}.1"  # arbitrary string
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
-        self.main_dialog.show()
+        # self.main_dialog.show()
         self.app.setWindowIcon(get_icon("tray_icon.png"))
         # Enter Qt application main loop
         self.app.exec()
         sys.exit()
+
+    def show_main_dialog(self):
+        """Show's the main dialog - forcing it to be on top."""
+        # TODO: make this work for the preferences dialog (?)
+        if sys.platform == "darwin":
+            if self.main_dialog.isVisible():
+                self.main_dialog.close()
+
+            self.main_dialog.setWindowFlags(Qt.WindowStaysOnTopHint)
+            self.main_dialog.show()
+            return
+
+        # Else: Windows/Linux
+        if self.main_dialog.isVisible():
+            # Close the dialog and re-open. This way we don't force the user to switch desktops/workspaces.
+            self.main_dialog.close()
+        self.main_dialog.setWindowFlags(
+            # Qt.Tool  # Tool makes it visible on all workspaces/desktops for Windows
+            Qt.Dialog
+        )  # TODO: test / research more https://doc.qt.io/qt-5/qt.html#WindowType-enum
+        self.main_dialog.show()
+        self.main_dialog.activateWindow()
 
     def thread_download_calendar_finished(self):
         """
@@ -160,18 +189,22 @@ class App:
         """Callback when the user clicks on the tray icon in the task bar. Should show various options/show the
         main GUI.
         """
-        # TODO: make this work across multiple OS'es properly.
-        print("CLICK", reason)
-        # reason == QSystemTrayIcon.ActivationReason.Trigger
-
-        self.main_dialog.close()
-        self.main_dialog.setVisible(True)
-        self.main_dialog.show()
-        self.main_dialog.setFocus()
-        self.main_dialog.setWindowState(
-            self.main_dialog.windowState() & ~Qt.WindowMinimized | Qt.WindowActive
-        )
-        self.main_dialog.activateWindow()
+        if sys.platform == "darwin":
+            if reason == QSystemTrayIcon.ActivationReason.Trigger:
+                return  # Mac OSX always shows the menu on left click (Trigger)
+            else:
+                print("UNHANDLED TRAY CLICK:", reason)
+        else:
+            # Windows/Linux
+            if reason in (
+                QSystemTrayIcon.ActivationReason.Trigger,
+                QSystemTrayIcon.ActivationReason.DoubleClick,
+            ):
+                # Force show the main dialog
+                if self.main_dialog.isVisible():
+                    self.main_dialog.close()
+                else:
+                    self.show_main_dialog()
 
     def update(self):
         """Main update thread that should be continuously running."""

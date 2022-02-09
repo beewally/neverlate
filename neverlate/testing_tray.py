@@ -16,7 +16,7 @@ class App:
 
         # Adding an icon
         fp = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "images", "icon.png"
+            os.path.dirname(os.path.abspath(__file__)), "images", "tray_icon.png"
         )
         print("FILE PATH:", fp, os.path.exists(fp))
         icon = QIcon(fp)

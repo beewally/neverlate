@@ -12,7 +12,7 @@ class App:
         # Create a Qt application
         self.app = QApplication(sys.argv)
         fp = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "images", "icon.png"
+            os.path.dirname(os.path.abspath(__file__)), "images", "alarm.png"
         )
         icon = QIcon(fp)
         menu = QMenu()

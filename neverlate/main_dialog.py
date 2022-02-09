@@ -61,12 +61,8 @@ class MainDialog(QDialog):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("NeverLate")
-        # self.setWindowFlags(
-        #     Qt.Tool
-        # )  # TODO: test / research more https://doc.qt.io/qt-5/qt.html#WindowType-enum
         self.setWindowIcon(get_icon("tray_icon.png"))
         self.update_now_button = QPushButton("Update Now")
-        self.quit_button = QPushButton("Exit App")
         self.time_to_update_label = QLabel()
 
         self.event_table = QTableWidget(0, 4)
@@ -103,9 +99,6 @@ class MainDialog(QDialog):
 
         main_layout.addLayout(layout)
 
-        button_layout = QHBoxLayout()
-        button_layout.addWidget(self.quit_button)
-        main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
 
     def update_table_with_events(self, alerters: list[EventAlerter]):
