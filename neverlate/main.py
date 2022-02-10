@@ -66,7 +66,9 @@ class UpdateCalendar(QThread):
 class App:
     """Main Qt application."""
 
+    app: QApplication
     tray: QSystemTrayIcon
+    preferences_dialog: PreferencesDialog
 
     def __init__(self) -> None:
         # Create a Qt application
