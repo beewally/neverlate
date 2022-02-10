@@ -1,11 +1,21 @@
+import ast
+import re
+
 import setuptools
+
+_version_re = re.compile(r"__version__\s+=\s+(.*)")
+with open("neverlate/__init__.py", "rb") as f:
+    _match = _version_re.search(f.read().decode("utf-8"))
+    if _match is None:
+        raise SystemExit("No version found")
+    version = str(ast.literal_eval(_match.group(1)))
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="neverlate",
-    version="0.0.2",
+    version=version,
     author="Brian Walters",
     author_email="brianrwalters@gmail.com",
     description="In your face notifications you can't miss for Google Calendar Events.",
