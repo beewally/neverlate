@@ -46,12 +46,16 @@ class UpdateCalendar(QThread):
                 for cal in self.gcal.calendars
                 if PREFERENCES.calendar_visibility.get(cal.id, cal.selected)
             ]
-            self.gcal.update_events(calendars_to_update)
+            self.gcal.update_events(calendars=calendars_to_update)
         except RefreshError:
             print("BAD THINGS HAVE HAPPENED AND NEED TO BE FIXED")
             raise
         except ConnectionResetError:
-            print("!!!!!!!!!!! CONNETION RESET ERROR!!!!!!!!!!!!!!", now_datetime())
+            print(
+                "NeverLate :",
+                now_datetime(),
+                ": Connection reset error while trying to download calendars + events.",
+            )
         except:
             print("=" * 80)
             print(traceback.format_exc())
