@@ -29,6 +29,8 @@ FONT_SIZE_MULTIPLIER = 1  # Multiply font size
 class AlertDialog(QDialog):
     """Pop up alert dialog."""
 
+    has_shown_maximized: bool = False
+
     def __init__(self, title: str, start_time: str, video_uri: str) -> None:
         super().__init__()
         self.start_time = datetime.fromisoformat(start_time)
@@ -207,8 +209,9 @@ class AlertDialog(QDialog):
             font.setPointSize(self.standard_font_size * 2 * FONT_SIZE_MULTIPLIER)
             self.time_to_event_label.setFont(font)
             self.setStyleSheet("background-color: rgb(255, 55, 55);")
-            if not self.isMaximized():
+            if not self.has_shown_maximized:
                 self.showMaximized()
+                self.has_shown_maximized = True
             self.snooze_until_combo_box.setVisible(False)
         else:
             if seconds_till < 60 * 2:
