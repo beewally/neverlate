@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import typing
+import webbrowser
 from datetime import timedelta
 
-from PySide6.QtCore import QRect, Qt, QThread, QTimer, Signal, Slot  # QThreadPool
+from PySide6.QtCore import QTimer  # QThreadPool
+from PySide6.QtCore import QRect, Qt, QThread, Signal, Slot
 from PySide6.QtGui import QAction, QColor, QCursor, QDesktopServices, QFont, QWindow
 from PySide6.QtWidgets import (  # pylint: disable=no-name-in-module
     QAbstractScrollArea,
@@ -11,6 +13,7 @@ from PySide6.QtWidgets import (  # pylint: disable=no-name-in-module
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMenu,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -21,6 +24,8 @@ from PySide6.QtWidgets import (  # pylint: disable=no-name-in-module
 from neverlate.utils import get_icon, now_datetime, pretty_datetime
 
 if typing.TYPE_CHECKING:
+    from PySide6.QtCore import QEvent
+
     from neverlate.event_alerter import EventAlerter
 
 # Table columns
@@ -62,8 +67,20 @@ class MainDialog(QDialog):
         super().__init__()
         self.setWindowTitle("NeverLate")
         self.setWindowIcon(get_icon("tray_icon.png"))
+
+        # Right click menu for the QTable
+        self.table_menu = QMenu(self)
+        self.label_section = self.table_menu.addAction("<Event Summary>")
+        self.table_menu.addSeparator()
+
+        self.trigger_alert_action = self.table_menu.addAction("Reset/Retrigger Alert")
+        self.trigger_alert_action.setIcon(get_icon("alarm.png"))
+        self.join_meeting_action = self.table_menu.addAction("Join Meeting")
+        self.join_meeting_action.setIcon(get_icon("video.png"))
+
         self.update_now_button = QPushButton("Update Now")
         self.time_to_update_label = QLabel()
+        self.row_to_event_alerter = {}  # type: dict[int, EventAlerter]
 
         self.event_table = QTableWidget(0, 4)
         self.event_table.setHorizontalHeaderItem(
@@ -86,6 +103,9 @@ class MainDialog(QDialog):
         )
         self.event_table.horizontalHeader().setStretchLastSection(True)
         self.event_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.event_table.setSelectionMode(QTableWidget.NoSelection)
+        self.event_table.setFocusPolicy(Qt.NoFocus)
+        self.event_table.contextMenuEvent = self.table_context_menu
         # table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 
         main_layout = QVBoxLayout()
@@ -98,8 +118,43 @@ class MainDialog(QDialog):
         layout.addWidget(self.update_now_button)
 
         main_layout.addLayout(layout)
-
         self.setLayout(main_layout)
+
+    def join_meeting(self, alerter: EventAlerter):
+        """Join a meeting - opening a browser to the given URL"""
+        url = alerter.time_event.get_video_url()
+        if url:
+            webbrowser.open(url, autoraise=True)
+
+    def table_context_menu(self, event: QEvent):
+        """
+        Display the right-click context menu - letting a user join a meeting directly, or re-trigger an alert.
+
+        Args:
+            event (QEvent): Event triggered
+        """
+        row = self.event_table.rowAt(event.pos().y())
+        alerter = self.row_to_event_alerter.get(row)
+        if alerter is None:
+            # This should not happen...
+            return
+
+        self.label_section.setText(alerter.time_event.summary)
+
+        # Trigger alert
+        self.trigger_alert_action.setVisible(alerter.has_alerted)
+        self.trigger_alert_action.triggered.connect(alerter.reset_alert)
+
+        # Join meeting
+        url = alerter.time_event.get_video_url()
+        self.join_meeting_action.setVisible(bool(url))
+        self.join_meeting_action.setText(
+            "Join Meeting (Google Meet)" if "meet.google" in url else "Join Meeting"
+        )
+        self.join_meeting_action.triggered.connect(lambda: self.join_meeting(alerter))
+
+        # Show the menu
+        self.table_menu.popup(QCursor.pos())
 
     def update_table_with_events(self, alerters: list[EventAlerter]):
         """Update the table with the specified alerter events."""
@@ -108,10 +163,9 @@ class MainDialog(QDialog):
         self.event_table.setRowCount(len(alerters))
         alerters.sort(key=lambda a: a.time_event.start_time)
         now = now_datetime()
+        self.row_to_event_alerter.clear()
         for idx, alerter in enumerate(alerters):
-            # font = item.font()  # type: QFont
-            # font.setStrikeOut(True)
-            # item.setFont(font)
+            self.row_to_event_alerter[idx] = alerter
 
             self.event_table.setItem(
                 idx, TABLE_SUMMARY, QTableWidgetItem(alerter.time_event.summary)
@@ -143,21 +197,10 @@ class MainDialog(QDialog):
 
                 time_till_alert = str(time_till_alert)
 
-            if alerter.has_alerted:
-                # Show the dialog WITH a button to reset the alert.
-                self.event_table.setItem(idx, TABLE_TIME_TILL_ALERT, None)  # type: ignore
-                time_till_widget = TimeTillAlertWidget(time_till_alert)
-                time_till_widget.reset_button.clicked.connect(alerter.reset_alert)
-                self.event_table.setCellWidget(
-                    idx, TABLE_TIME_TILL_ALERT, time_till_widget
-                )
-
-            else:
-                # Set the base text
-                self.event_table.setItem(
-                    idx, TABLE_TIME_TILL_ALERT, QTableWidgetItem(time_till_alert)
-                )
-                self.event_table.setCellWidget(idx, TABLE_TIME_TILL_ALERT, None)
+            # Set the base text
+            self.event_table.setItem(
+                idx, TABLE_TIME_TILL_ALERT, QTableWidgetItem(time_till_alert)
+            )
 
             # Calendar
             self.event_table.setItem(
@@ -179,8 +222,6 @@ class MainDialog(QDialog):
                 # Meeting is over. 'Disable' it.
                 for column in range(self.event_table.columnCount()):
                     item = self.event_table.item(idx, column)
-                    if not item:
-                        continue
                     background = item.background()
                     background.setColor(LIGHT_GREY)
                     foreground = item.foreground()
@@ -197,17 +238,6 @@ class MainDialog(QDialog):
                     else:  # User should be in th emeeting
                         bg_color = LIGHT_RED
                     item = self.event_table.item(idx, column)
-                    widget = self.event_table.cellWidget(idx, column)
-
-                    if not item:
-                        palette = widget.palette()
-                        widget.setPalette(palette)
-                        widget.setAttribute(Qt.WA_StyledBackground, True)
-                        widget.setStyleSheet(
-                            f"background-color: rgb({bg_color.red()}, {bg_color.green()}, {bg_color.blue()});"
-                        )
-                        palette.setColor(widget.backgroundRole(), bg_color)
-                        continue
                     background = item.background()
                     foreground = item.foreground()
                     foreground.setColor(BLACK)
@@ -223,8 +253,6 @@ class MainDialog(QDialog):
                 # Meeting is coming up soon
                 for column in range(self.event_table.columnCount()):
                     item = self.event_table.item(idx, column)
-                    if not item:
-                        continue
                     background = item.background()
                     background.setColor(LIGHT_YELLOW)
                     foreground = item.foreground()
@@ -240,8 +268,6 @@ class MainDialog(QDialog):
                 # Future event
                 for column in range(self.event_table.columnCount()):
                     item = self.event_table.item(idx, column)
-                    if not item:
-                        continue
                     background = item.background()
                     background.setColor(WHITE)
                     foreground = item.foreground()

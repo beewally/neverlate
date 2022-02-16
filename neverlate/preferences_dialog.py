@@ -43,6 +43,10 @@ class PreferencesDialog(QDialog):  # pylint: disable=too-few-public-methods
         self.download_cal_freq_sb.setValue(PREFERENCES.download_cal_freq)
         self.download_cal_freq_sb.setMinimum(3)
 
+        # Log out button
+        self.logout_button = QPushButton("Logout")
+        self.logout_button.pressed.connect(self.close)
+
         # Close buttons
         self.apply_button = QPushButton("Apply")
         self.apply_button.pressed.connect(self.save)
@@ -84,6 +88,7 @@ class PreferencesDialog(QDialog):  # pylint: disable=too-few-public-methods
 
         # Close/accept buttons
         button_box = QHBoxLayout()
+        button_box.addWidget(self.logout_button)
         button_box.addStretch()
         button_box.addWidget(self.apply_button)
         button_box.addWidget(self.cancel_button)

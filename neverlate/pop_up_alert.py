@@ -50,6 +50,7 @@ class AlertDialog(QDialog):
         if "meet.google" in self.video_uri:
             self.button_join.setText("Join Meeting (Google Meet)")
         self.button_join.clicked.connect(self.dismiss_and_join)
+        self.button_join.setIcon(get_icon("video.png"))
         if not self.video_uri:
             self.button_join.setVisible(False)
 

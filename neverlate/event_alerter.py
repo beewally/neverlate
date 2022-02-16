@@ -1,6 +1,8 @@
 """Module for displaying alerts to the user."""
 from __future__ import annotations
 
+import logging
+
 # pylint: disable=no-name-in-module
 import os
 import subprocess  # nosec
@@ -14,6 +16,8 @@ from neverlate.constants import OUTPUT_DISMISS, OUTPUT_SNOOZE
 from neverlate.google_cal_downloader import TimeEvent
 from neverlate.preferences import PREFERENCES
 from neverlate.utils import now_datetime
+
+logger = logging.getLogger("NeverLate")
 
 
 class EventAlerter:
@@ -43,8 +47,11 @@ class EventAlerter:
 
     def close_pop_up(self):
         """Close any pop-up dialog threads.  Call before terminating."""
+        # FIXME: no longer working in Windows...
         try:
             if self._alerter.isRunning():
+                logger.debug("TERMINATING A POP UP: %s", self.time_event.summary)
+                self._alerter.process.kill()
                 self._alerter.process.terminate()
                 self._alerter.terminate()
         except RuntimeError:
@@ -148,11 +155,11 @@ class PopUpAlerterThread(QThread):
         err = self.process.stderr.read().decode()
         if result != 0:
             # Something bad happened. Just alert aga
-            print("ERROR:", err)
+            logger.error(err)
             return
         else:
             if len(output.splitlines()) > 1:
-                print("Closed event, output:", output)
+                logger.debug("Closed event, output:", output)
             output = output.splitlines()[-1] if output else ""
             if output.startswith(OUTPUT_SNOOZE):
                 snooze_time = int(output.split()[-1])
