@@ -47,6 +47,7 @@ class EventAlerter:
 
     def close_pop_up(self):
         """Close any pop-up dialog threads.  Call before terminating."""
+        self.dismissed_alerts = True
         try:
             if self._alerter.isRunning():
                 logger.debug("TERMINATING A POP UP: %s", self.time_event.summary)

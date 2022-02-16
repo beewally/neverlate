@@ -126,6 +126,10 @@ class MainDialog(QDialog):
         if url:
             webbrowser.open(url, autoraise=True)
 
+            # Dismiss alert dialogs
+            if alerter.has_alerted:
+                alerter.close_pop_up()
+
     def table_context_menu(self, event: QEvent):
         """
         Display the right-click context menu - letting a user join a meeting directly, or re-trigger an alert.

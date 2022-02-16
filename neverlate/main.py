@@ -98,11 +98,9 @@ class App:
 
         # Log in & get google calendar events
         self.gcal = GoogleCalDownloader()
-
         self.login()
-        # self.gcal.update_calendars()
-        # Timer - runs in the main thread every 1 second
 
+        # Timer - runs in the main thread every 1 second
         self.my_timer = QTimer()
         self.my_timer.timeout.connect(self.update)
         self.my_timer.start(1 * 1000)  # 1 sec intervall
@@ -146,8 +144,13 @@ class App:
         """
         if force:
             self.gcal.logout()
-        elif self.gcal.login():
-            return
+        elif self.gcal.login(require_existing_credentials=True):
+            try:
+                self.gcal.update_calendars()
+                return
+            except RefreshError:
+                # Likely the user needs to log in again (credential issue)
+                pass
         login_dialog = LoginDialog()
         login_dialog.login_button.pressed.connect(self.main_dialog.hide)
         login_dialog.login_button.pressed.connect(self.gcal.login)

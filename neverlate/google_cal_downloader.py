@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import datetime
-import json
 import os
 import time
-from ctypes import Union
 from pprint import pprint as pp
 from typing import Any, Optional
 
@@ -33,15 +31,19 @@ class Calendar:
     summary: str
     id: str
     primary: bool
+    selected: bool  # Is the user displaying the calendary by default
 
     def __init__(self, data: dict[Any, Any]) -> None:
         self._data = data
         self.id = data["id"]
         self.primary = data.get("primary", False)
         self.summary = data.get("summaryOverride", data.get("summary", "<No Title>"))
-        self.selected = data.get(
-            "selected", False
-        )  # Is the user displaying this calendar by default
+        if self.primary:
+            self.selected = True
+        elif self.summary == "Birthdays" or self.summary.lower().startswith("holiday"):
+            self.selected = False
+        else:
+            self.selected = data.get("selected", False)
 
     def __repr__(self):
         if self.primary:
@@ -85,7 +87,7 @@ class TimeEvent:
         ):
             raise ValueError("Invalid data type - not a calendar event")
         self.calendar = calendar
-        self._event = item  # type: dict
+        self._event = item  # type: dict[str, Any]
         self.summary = self._event.get("summary", "<No Title>")
 
         # Get start and end times as datetime objects
@@ -161,14 +163,19 @@ class GoogleCalDownloader:  # (QObject):
         self.user_token_file_path = os.path.join(app_local_data_dir(), "token.json")
 
     def logout(self):
+        """
+        Remove the user token file and disconnect the service.
+        """
         if os.path.exists(self.user_token_file_path):
             os.remove(self.user_token_file_path)
 
         self.service = None
 
-    def login(self) -> Credentials:
+    def login(self, require_existing_credentials: bool = False) -> bool:
         """Gets google authentication credentails."""
         creds = self.get_existing_credentials()
+        if require_existing_credentials and not creds:
+            return False
         if not creds:
             flow = InstalledAppFlow.from_client_secrets_file(
                 self._cred_file_path, SCOPES
@@ -180,49 +187,16 @@ class GoogleCalDownloader:  # (QObject):
                 token_file.write(creds.to_json())
 
         self.service = build("calendar", "v3", credentials=creds)  # type: Resource
-        return creds
+        return True
 
-        creds = None
-        # The file token.json stores the user's access and refresh tokens, and is
-        # created automatically when the authorization flow completes for the first
-        # time.
-        if os.path.exists(self.user_token_file_path):
-            creds = Credentials.from_authorized_user_file(
-                self.user_token_file_path, SCOPES
-            )
-
-        # If there are no (valid) credentials available, let the user log in.
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                try:
-                    # TODO: sync with google's example code (and remove try/except ?)
-                    creds.refresh(Request())
-                except RefreshError:
-                    print(" ================ Token is bad! ================")
-                    try:
-                        creds.refresh(Request())
-                    except RefreshError:
-                        os.remove(self.user_token_file_path)
-                        return self.get_credentials()
-            else:
-                # Make the user sign in via a browser
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self._cred_file_path, SCOPES
-                )
-                creds = flow.run_local_server(port=0)
-
-            # Save the credentials for the next run
-            with open(self.user_token_file_path, "w") as token_file:
-                token_file.write(creds.to_json())
-        return creds
-
-    def get_existing_credentials(self) -> Optional[Credentials]:
+    def get_existing_credentials(self) -> Credentials | None:
         """
         Check if we have valid credentials or not.
 
         Returns:
             Credentials|None
         """
+        creds = None
         if not os.path.exists(self.user_token_file_path):
             return None
         creds = Credentials.from_authorized_user_file(self.user_token_file_path, SCOPES)
@@ -235,10 +209,9 @@ class GoogleCalDownloader:  # (QObject):
                 # Save the credentials for the next run
                 with open(self.user_token_file_path, "w") as token_file:
                     token_file.write(creds.to_json())
-
                 return creds
             except RefreshError:
-                pass
+                return None
 
     def update_calendars(self) -> None:
         result = self.service.calendarList().list().execute()
