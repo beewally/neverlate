@@ -47,12 +47,16 @@ class EventAlerter:
 
     def close_pop_up(self):
         """Close any pop-up dialog threads.  Call before terminating."""
-        # FIXME: no longer working in Windows...
         try:
             if self._alerter.isRunning():
                 logger.debug("TERMINATING A POP UP: %s", self.time_event.summary)
-                self._alerter.process.kill()
-                self._alerter.process.terminate()
+                if sys.platform == "win32":
+                    subprocess.call(
+                        ["taskkill", "/F", "/T", "/PID", str(self._alerter.process.pid)]
+                    )
+                else:
+                    self._alerter.process.kill()
+                    self._alerter.process.terminate()
                 self._alerter.terminate()
         except RuntimeError:
             pass
