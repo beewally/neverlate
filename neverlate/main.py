@@ -3,26 +3,31 @@
 from __future__ import annotations
 
 import ctypes
+import logging
 import sys
 import time
 import traceback
 
 from google.auth.exceptions import RefreshError
 from PySide6.QtCore import QRect, Qt, QThread, QTimer, Slot
-from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 from neverlate.constants import APP_NAME
 from neverlate.event_alerter import EventAlerter
 from neverlate.google_cal_downloader import GoogleCalDownloader
+from neverlate.login_dialog import LoginDialog
 from neverlate.main_dialog import MainDialog
 from neverlate.preferences import PREFERENCES
 from neverlate.preferences_dialog import PreferencesDialog
-from neverlate.utils import get_icon, now_datetime, seconds_to_min_sec
+from neverlate.utils import get_icon, seconds_to_min_sec
 
 # TODO: add a column for attending status, join button, reset time alert button
 # TODO: support calendars
 # TODO: support preferences
 # TODO: make it prettier for mac osx dark theme (just handle/bypass OS themes altogether?)
+
+
+logger = logging.getLogger("NeverLate")
 
 
 class UpdateCalendar(QThread):
@@ -31,6 +36,7 @@ class UpdateCalendar(QThread):
     def __init__(self, calendar: GoogleCalDownloader) -> None:
         super().__init__()
         self.gcal = calendar
+        self.needs_login = False
 
     def run(self):
         """Main entry point.
@@ -38,7 +44,7 @@ class UpdateCalendar(QThread):
         Raises:
             RefreshError: When unable to download the calendar events for some reason.
         """
-        # TODO: handle internet outtage/unresponsive google (in addition to token expirations)
+        self.needs_login = False
         try:
             self.gcal.update_calendars()
             calendars_to_update = [
@@ -48,19 +54,19 @@ class UpdateCalendar(QThread):
             ]
             self.gcal.update_events(calendars=calendars_to_update)
         except RefreshError:
-            print("BAD THINGS HAVE HAPPENED AND NEED TO BE FIXED")
-            raise
+            logger.error("BAD THINGS HAVE HAPPENED AND NEED TO BE FIXED")
+            self.needs_login = True
         except ConnectionResetError:
-            print(
-                "NeverLate :",
-                now_datetime(),
-                ": Connection reset error while trying to download calendars + events.",
+            logger.debug(
+                "ConnectionResetError while trying to download calendars + events. (Will try again)"
+            )
+        except ConnectionAbortedError:
+            logger.debug(
+                "ConnectionAbortedError error while trying to download calendars + events. (Will try again)"
             )
         except:
-            print("=" * 80)
-            print(traceback.format_exc())
-            print("=" * 80)
-            print("Unknown bad things have happened!!", now_datetime())
+            line = "=" * 80
+            logger.error("%s\n%s\n%s", line, traceback.format_exc(), line)
 
 
 class App:
@@ -85,13 +91,18 @@ class App:
         self.main_dialog.setGeometry(rect)
 
         self.preferences_dialog = PreferencesDialog()
+        self.preferences_dialog.logout_button.pressed.connect(
+            lambda: self.login(force=True)
+        )
         self._setup_tray()
 
         # Log in & get google calendar events
         self.gcal = GoogleCalDownloader()
-        self.gcal.update_calendars()
 
+        self.login()
+        # self.gcal.update_calendars()
         # Timer - runs in the main thread every 1 second
+
         self.my_timer = QTimer()
         self.my_timer.timeout.connect(self.update)
         self.my_timer.start(1 * 1000)  # 1 sec intervall
@@ -127,6 +138,24 @@ class App:
         #     get_icon("tray_icon.png"),
         # )
 
+    def login(self, force: bool = False):
+        """Log into Google!
+
+        Args:
+            force (bool, optional): Force the user to re-log in.. Defaults to False.
+        """
+        if force:
+            self.gcal.logout()
+        elif self.gcal.login():
+            return
+        login_dialog = LoginDialog()
+        login_dialog.login_button.pressed.connect(self.main_dialog.hide)
+        login_dialog.login_button.pressed.connect(self.gcal.login)
+        result = login_dialog.exec()
+        if result == 0:  # User quit
+            self.app.quit()  # TODO: test when in threads
+            return sys.exit()
+
     def on_update_now(self):
         """User manually requested the calanders be re-downloaded."""
         self.update_calendar_thread.start()
@@ -147,9 +176,9 @@ class App:
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         # self.main_dialog.show()
         self.app.setWindowIcon(get_icon("tray_icon.png"))
+        self.main_dialog.show()  # TODO: enable/disable? just first time you launch?
         # Enter Qt application main loop
         self.app.exec()
-        sys.exit()
 
     def show_main_dialog(self):
         """Show's the main dialog - forcing it to be on top."""
@@ -182,6 +211,25 @@ class App:
         """
         Called when the update thread is finished - all google calendars and events have been donwloaded.
         """
+        # Check if there was an error
+        if self.update_calendar_thread.needs_login:
+            mb = QMessageBox()
+            mb.setWindowTitle("NeverLate: Logged Out")
+            mb.setIcon(QMessageBox.Critical)
+            mb.setText("You have been logged out of Google. Please log back in.")
+            mb.setDetailedText(
+                "This happened because this app has not been verified by Google yet, which requires "
+                "testers to re-login once a week."
+            )
+            mb.setStandardButtons(QMessageBox.Ok)
+            mb.exec()
+            self.login(force=True)
+            self.update_calendar_thread.start()
+            return
+
+        # Update the GUI
+        self.main_dialog.update_now_button.setEnabled(True)
+
         # Check if new calendars need to be saved
         save_prefs = False
         for cal in self.gcal.calendars:
@@ -191,9 +239,6 @@ class App:
 
         if save_prefs:
             PREFERENCES.save()
-
-        # Update the GUI
-        self.main_dialog.update_now_button.setEnabled(True)
 
         # Process new/old events (close pop-ups for deleted events)
         cur_event_ids = {event.id for event in self.gcal.events}
@@ -221,7 +266,7 @@ class App:
             if reason == QSystemTrayIcon.ActivationReason.Trigger:
                 return  # Mac OSX always shows the menu on left click (Trigger)
             else:
-                print("UNHANDLED TRAY CLICK:", reason)
+                logger.debug("UNHANDLED TRAY CLICK: %s", reason)
         else:
             # Windows/Linux
             if reason in (
@@ -236,8 +281,11 @@ class App:
 
     def update(self):
         """Main update thread that should be continuously running."""
-        # print(QCursor.pos())
-        if self.update_calendar_thread.isFinished():
+
+        if (
+            not self.update_calendar_thread.needs_login
+            and self.update_calendar_thread.isFinished()
+        ):
             time_to_update = (PREFERENCES.download_cal_freq * 60) - (
                 time.time() - self.gcal.last_update_time
             )
@@ -267,6 +315,14 @@ class App:
 
 def run():
     """Console tool entry point/ when run as __main__"""
+    logging.basicConfig(
+        level=logging.WARNING,
+        format="NeverLate: %(asctime)s %(levelname)s : %(message)s",
+    )
+    if "--verbose" in sys.argv or "-v" in sys.argv:
+        logger.setLevel(logging.DEBUG)
+        logger.debug("Verbose mode is enabled!")
+
     app = App()
     app.run()
 

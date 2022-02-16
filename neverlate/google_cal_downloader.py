@@ -4,6 +4,7 @@ import datetime
 import json
 import os
 import time
+from ctypes import Union
 from pprint import pprint as pp
 from typing import Any, Optional
 
@@ -151,45 +152,93 @@ class GoogleCalDownloader:  # (QObject):
 
     def __init__(self):
         super().__init__()
-        self.creds = self.get_credentials()
-        self.service = build("calendar", "v3", credentials=self.creds)  # type: Resource
-        # self.primary_calendar: Calendar
-        # print("CAL:", self.primary_calendar)
+        self.service = None
+        # self.service = build("calendar", "v3", credentials=self.creds)  # type: Resource
+        self._cred_file_path = os.path.join(
+            os.path.dirname(__file__), "credentials.json"
+        )
 
-    def get_credentials(self) -> Credentials:
+        self.user_token_file_path = os.path.join(app_local_data_dir(), "token.json")
+
+    def logout(self):
+        if os.path.exists(self.user_token_file_path):
+            os.remove(self.user_token_file_path)
+
+        self.service = None
+
+    def login(self) -> Credentials:
         """Gets google authentication credentails."""
+        creds = self.get_existing_credentials()
+        if not creds:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                self._cred_file_path, SCOPES
+            )
+            creds = flow.run_local_server(port=0)
+
+            # Save the credentials for the next run
+            with open(self.user_token_file_path, "w") as token_file:
+                token_file.write(creds.to_json())
+
+        self.service = build("calendar", "v3", credentials=creds)  # type: Resource
+        return creds
+
         creds = None
         # The file token.json stores the user's access and refresh tokens, and is
         # created automatically when the authorization flow completes for the first
         # time.
-        cred_file_path = os.path.join(os.path.dirname(__file__), "credentials.json")
-        token_file_path = os.path.join(app_local_data_dir(), "token.json")
-        if os.path.exists(token_file_path):
-            creds = Credentials.from_authorized_user_file(token_file_path, SCOPES)
-        else:
-            print("NO CREDENTIALS", token_file_path)
-        # If there are no (valid) credentials available, let the user log in.
+        if os.path.exists(self.user_token_file_path):
+            creds = Credentials.from_authorized_user_file(
+                self.user_token_file_path, SCOPES
+            )
 
+        # If there are no (valid) credentials available, let the user log in.
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 try:
+                    # TODO: sync with google's example code (and remove try/except ?)
                     creds.refresh(Request())
                 except RefreshError:
                     print(" ================ Token is bad! ================")
                     try:
                         creds.refresh(Request())
                     except RefreshError:
-                        os.remove(token_file_path)
+                        os.remove(self.user_token_file_path)
                         return self.get_credentials()
-                        # TODO: alert and terminate
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(cred_file_path, SCOPES)
+                # Make the user sign in via a browser
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    self._cred_file_path, SCOPES
+                )
                 creds = flow.run_local_server(port=0)
 
             # Save the credentials for the next run
-            with open(token_file_path, "w") as token_file:
+            with open(self.user_token_file_path, "w") as token_file:
                 token_file.write(creds.to_json())
         return creds
+
+    def get_existing_credentials(self) -> Optional[Credentials]:
+        """
+        Check if we have valid credentials or not.
+
+        Returns:
+            Credentials|None
+        """
+        if not os.path.exists(self.user_token_file_path):
+            return None
+        creds = Credentials.from_authorized_user_file(self.user_token_file_path, SCOPES)
+        if creds.valid:
+            return creds
+        if creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+
+                # Save the credentials for the next run
+                with open(self.user_token_file_path, "w") as token_file:
+                    token_file.write(creds.to_json())
+
+                return creds
+            except RefreshError:
+                pass
 
     def update_calendars(self) -> None:
         result = self.service.calendarList().list().execute()

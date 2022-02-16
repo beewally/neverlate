@@ -60,4 +60,5 @@ def pretty_datetime(dt: datetime.datetime) -> str:
 def seconds_to_min_sec(seconds: int) -> str:
     """Convert seconds to min:sec (e.g. 105 -> '1:45'."""
     min_, secs = divmod(seconds, 60)
+    secs = str(secs).zfill(2)
     return f"{min_}:{secs}"
