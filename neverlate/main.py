@@ -7,6 +7,7 @@ import logging
 import sys
 import time
 import traceback
+import typing
 
 from google.auth.exceptions import RefreshError
 from PySide6.QtCore import QRect, Qt, QThread, QTimer, Slot
@@ -25,6 +26,9 @@ from neverlate.utils import get_icon, seconds_to_min_sec
 # TODO: support calendars
 # TODO: support preferences
 # TODO: make it prettier for mac osx dark theme (just handle/bypass OS themes altogether?)
+
+if typing.TYPE_CHECKING:
+    from PySide6.QtWidgets import QDialog
 
 
 logger = logging.getLogger("NeverLate")
@@ -136,6 +140,32 @@ class App:
         #     get_icon("tray_icon.png"),
         # )
 
+    def _show_dialog(self, dialog: QDialog):
+        """Show a dialog - and if it's already visibile, try to bring it to the front. (This logic varies a good bit
+        per OS.)
+
+        Args:
+            dialog (QDialog): Dialog to show.
+        """
+        if sys.platform == "darwin":
+            if dialog.isVisible():
+                dialog.close()
+
+            dialog.setWindowFlags(Qt.WindowStaysOnTopHint)
+            dialog.show()
+            return
+
+        # Else: Windows/Linux
+        if dialog.isVisible():
+            # Close the dialog and re-open. This way we don't force the user to switch desktops/workspaces.
+            dialog.close()
+        dialog.setWindowFlags(
+            # Qt.Tool  # Tool makes it visible on all workspaces/desktops for Windows
+            Qt.Dialog
+        )  # TODO: test / research more https://doc.qt.io/qt-5/qt.html#WindowType-enum
+        dialog.show()
+        dialog.activateWindow()
+
     def login(self, force: bool = False):
         """Log into Google!
 
@@ -180,35 +210,23 @@ class App:
         # self.main_dialog.show()
         self.app.setWindowIcon(get_icon("tray_icon.png"))
         self.main_dialog.show()  # TODO: enable/disable? just first time you launch?
+
         # Enter Qt application main loop
         self.app.exec()
 
     def show_main_dialog(self):
         """Show's the main dialog - forcing it to be on top."""
         # TODO: make this work for the preferences dialog (?)
-        if sys.platform == "darwin":
-            if self.main_dialog.isVisible():
-                self.main_dialog.close()
 
-            self.main_dialog.setWindowFlags(Qt.WindowStaysOnTopHint)
-            self.main_dialog.show()
-            return
+        self._show_dialog(self.main_dialog)
 
-        # Else: Windows/Linux
-        if self.main_dialog.isVisible():
-            # Close the dialog and re-open. This way we don't force the user to switch desktops/workspaces.
-            self.main_dialog.close()
-        self.main_dialog.setWindowFlags(
-            # Qt.Tool  # Tool makes it visible on all workspaces/desktops for Windows
-            Qt.Dialog
-        )  # TODO: test / research more https://doc.qt.io/qt-5/qt.html#WindowType-enum
-        self.main_dialog.show()
-        self.main_dialog.activateWindow()
+        # Make sure the UI is up to date with the latest events
+        self.update()
 
     def show_preferences_dialog(self):
         """Show the preferences dialog. Make sure it has the latest calendars."""
         self.preferences_dialog.update_calendars(self.gcal.calendars)
-        self.preferences_dialog.show()
+        self._show_dialog(self.preferences_dialog)
 
     def thread_download_calendar_finished(self):
         """
@@ -284,7 +302,7 @@ class App:
 
     def update(self):
         """Main update thread that should be continuously running."""
-
+        QMenu()
         if (
             not self.update_calendar_thread.needs_login
             and self.update_calendar_thread.isFinished()
@@ -311,8 +329,8 @@ class App:
             else:
                 event_alerter.update()
                 display_events.append(event_alerter)
-
-        self.main_dialog.update_table_with_events(display_events)
+        if self.main_dialog.isVisible():
+            self.main_dialog.update_table_with_events(display_events)
         # self.main_dialog.setSizePolicy(QSizePolicy.Expanding)
 
 

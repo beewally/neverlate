@@ -96,7 +96,13 @@ class TimeEvent:
         # self.start_time = datetime.datetime.strptime(st_time[:19], "%Y-%m-%dT%H:%M:%S")
         end_time = self._event["end"]["dateTime"]
         self.end_time = datetime.datetime.fromisoformat(end_time)
-        self.id = self._event["id"] + "::" + self.start_time.isoformat()
+        self.id = "::".join(
+            (
+                self._event["id"],
+                self.start_time.isoformat(),
+                self.get_video_url(),
+            )
+        )
 
     def __repr__(self):
         return (

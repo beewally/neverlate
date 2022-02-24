@@ -1,9 +1,8 @@
 """Module for displaying alerts to the user."""
+# pylint: disable=no-name-in-module
 from __future__ import annotations
 
 import logging
-
-# pylint: disable=no-name-in-module
 import os
 import subprocess  # nosec
 import sys
@@ -52,7 +51,7 @@ class EventAlerter:
             if self._alerter.isRunning():
                 logger.debug("TERMINATING A POP UP: %s", self.time_event.summary)
                 if sys.platform == "win32":
-                    subprocess.call(
+                    subprocess.call(  # nosec
                         ["taskkill", "/F", "/T", "/PID", str(self._alerter.process.pid)]
                     )
                 else:
@@ -117,8 +116,8 @@ class EventAlerter:
         # fmt: off
         if (
             self.dismissed_alerts
-            or self.time_event.has_declined()  
-            or self.time_event.has_ended() 
+            or self.time_event.has_declined()    
+            or self.time_event.has_ended()    
             or self._alerter.isRunning()  # Already alerted
         ):
             return False
@@ -156,7 +155,7 @@ class PopUpAlerterThread(QThread):
             shell=use_shell,  # nosec
         )
         result = self.process.wait()
-        output = self.process.stdout.read().decode()  # type: str
+        output = self.process.stdout.read().decode()
         err = self.process.stderr.read().decode()
         if result != 0:
             # Something bad happened. Just alert aga
@@ -164,7 +163,7 @@ class PopUpAlerterThread(QThread):
             return
         else:
             if len(output.splitlines()) > 1:
-                logger.debug("Closed event, output:", output)
+                logger.debug("Closed event, output: %s", output)
             output = output.splitlines()[-1] if output else ""
             if output.startswith(OUTPUT_SNOOZE):
                 snooze_time = int(output.split()[-1])

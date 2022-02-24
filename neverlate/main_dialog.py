@@ -1,13 +1,14 @@
+# pylint: disable=no-name-in-module
+"""Main dialog with the Table view of events."""
 from __future__ import annotations
 
 import typing
 import webbrowser
 from datetime import timedelta
 
-from PySide6.QtCore import QTimer  # QThreadPool
-from PySide6.QtCore import QRect, Qt, QThread, Signal, Slot
-from PySide6.QtGui import QAction, QColor, QCursor, QDesktopServices, QFont, QWindow
-from PySide6.QtWidgets import (  # pylint: disable=no-name-in-module
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction, QColor, QCursor, QFont
+from PySide6.QtWidgets import (
     QAbstractScrollArea,
     QDialog,
     QHBoxLayout,
@@ -18,7 +19,6 @@ from PySide6.QtWidgets import (  # pylint: disable=no-name-in-module
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
-    QWidget,
 )
 
 from neverlate.utils import get_icon, now_datetime, pretty_datetime
@@ -34,7 +34,6 @@ TABLE_TIME_TILL_ALERT = 1
 TABLE_EVENT_TIMES = 2
 TABLE_CALENDAR = 3
 
-
 # Colors
 BLACK = QColor(*(3 * [0]))
 DARK_GREY = QColor(*(3 * [50]))
@@ -43,21 +42,6 @@ LIGHT_GREEN = QColor(200, 255, 200)
 LIGHT_RED = QColor(255, 200, 200)
 LIGHT_YELLOW = QColor(255, 255, 200)
 WHITE = QColor(*(3 * [255]))
-
-
-class TimeTillAlertWidget(QWidget):
-    """Widget to show some the time till an event (4:32) and a button to re-trigger teh alert."""
-
-    def __init__(self, text: str):
-        super().__init__()
-
-        box_layout = QHBoxLayout()
-        box_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_text = QLabel(text)
-        self.reset_button = QPushButton(icon=get_icon("alarm.png"))
-        box_layout.addWidget(self.main_text)
-        box_layout.addWidget(self.reset_button)
-        self.setLayout(box_layout)
 
 
 class MainDialog(QDialog):
@@ -70,13 +54,19 @@ class MainDialog(QDialog):
 
         # Right click menu for the QTable
         self.table_menu = QMenu(self)
-        self.label_section = self.table_menu.addAction("<Event Summary>")
+        self.label_section = self.table_menu.addAction(
+            "<Event Summary>"
+        )  # type: QAction
+        self.label_section.setEnabled(False)
+        font = self.label_section.font()
+        font.setBold(True)
+        self.label_section.setFont(font)
         self.table_menu.addSeparator()
 
-        self.trigger_alert_action = self.table_menu.addAction("Reset/Retrigger Alert")
-        self.trigger_alert_action.setIcon(get_icon("alarm.png"))
         self.join_meeting_action = self.table_menu.addAction("Join Meeting")
         self.join_meeting_action.setIcon(get_icon("video.png"))
+        self.trigger_alert_action = self.table_menu.addAction("Reset/Retrigger Alert")
+        self.trigger_alert_action.setIcon(get_icon("alarm.png"))
 
         self.update_now_button = QPushButton("Update Now")
         self.time_to_update_label = QLabel()
@@ -95,6 +85,7 @@ class MainDialog(QDialog):
         self.event_table.setHorizontalHeaderItem(
             TABLE_CALENDAR, QTableWidgetItem("Calendar")
         )
+
         # self.event_table.horizontalHeader().hide()
         self.event_table.verticalHeader().hide()
         self.event_table.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
@@ -132,7 +123,8 @@ class MainDialog(QDialog):
 
     def table_context_menu(self, event: QEvent):
         """
-        Display the right-click context menu - letting a user join a meeting directly, or re-trigger an alert.
+        Display the right-click context menu - letting a user join a meeting directly,
+        or re-trigger an alert.
 
         Args:
             event (QEvent): Event triggered
@@ -146,18 +138,17 @@ class MainDialog(QDialog):
         self.label_section.setText(alerter.time_event.summary)
 
         # Trigger alert
-        self.trigger_alert_action.setVisible(alerter.has_alerted)
+        self.trigger_alert_action.setEnabled(alerter.has_alerted)
         self.trigger_alert_action.triggered.connect(alerter.reset_alert)
 
         # Join meeting
         url = alerter.time_event.get_video_url()
-        self.join_meeting_action.setVisible(bool(url))
+        self.join_meeting_action.setEnabled(bool(url))
         self.join_meeting_action.setText(
             "Join Meeting (Google Meet)" if "meet.google" in url else "Join Meeting"
         )
         self.join_meeting_action.triggered.connect(lambda: self.join_meeting(alerter))
 
-        # Show the menu
         self.table_menu.popup(QCursor.pos())
 
     def update_table_with_events(self, alerters: list[EventAlerter]):
