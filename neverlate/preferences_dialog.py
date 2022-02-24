@@ -43,6 +43,16 @@ class PreferencesDialog(QDialog):  # pylint: disable=too-few-public-methods
         self.download_cal_freq_sb.setValue(PREFERENCES.download_cal_freq)
         self.download_cal_freq_sb.setMinimum(3)
 
+        # Snooze timer box
+        self.snooze_untill_seconds_sb = QSpinBox()
+        self.snooze_untill_seconds_sb.setValue(PREFERENCES.snooze_until_seconds)
+
+        # Snooze for toggle
+        self.show_snooze_for_cb = QCheckBox(
+            "Show a 'Snooze For' option in the alert dialogs"
+        )
+        self.show_snooze_for_cb.setChecked(PREFERENCES.show_snooze_for_menu)
+
         # Log out button
         self.logout_button = QPushButton("Logout")
         self.logout_button.pressed.connect(self.close)
@@ -50,6 +60,7 @@ class PreferencesDialog(QDialog):  # pylint: disable=too-few-public-methods
         # Close buttons
         self.apply_button = QPushButton("Apply")
         self.apply_button.pressed.connect(self.save)
+        self.apply_button.setDefault(True)
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.pressed.connect(self.close)
         # self.button.clicked.connect(close_s)
@@ -65,12 +76,19 @@ class PreferencesDialog(QDialog):  # pylint: disable=too-few-public-methods
 
         toggle_layout = QFormLayout()
         toggle_layout.addRow(
-            "Minutes before an event to show an alert dialog", self.alert_padding_sb
+            "Minutes before an event to first show an alert dialog",
+            self.alert_padding_sb,
+        )
+        toggle_layout.addRow(
+            "Seconds before an event to show a snoozed dialog",
+            self.snooze_untill_seconds_sb,
         )
         toggle_layout.addRow(
             "Frequency in minutes to check for new events", self.download_cal_freq_sb
         )
+
         main_layout.addLayout(toggle_layout)
+        main_layout.addWidget(self.show_snooze_for_cb)
 
         # Calendars
         main_layout.addWidget(QLabel("Calendar(s)"))
@@ -104,6 +122,8 @@ class PreferencesDialog(QDialog):  # pylint: disable=too-few-public-methods
         PREFERENCES.calendar_visibility = {
             id_: toggle.isChecked() for id_, toggle in self.calendar_toggles.items()
         }
+        PREFERENCES.show_snooze_for_menu = self.show_snooze_for_cb.isChecked()
+        PREFERENCES.snooze_until_seconds = self.snooze_untill_seconds_sb.value()
 
         PREFERENCES.save()
         self.close()

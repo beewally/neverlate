@@ -3,6 +3,7 @@ import ctypes
 import sys
 import webbrowser
 from datetime import datetime, timedelta
+from time import time
 
 from PySide6.QtCore import Qt, QTimer, Slot
 from PySide6.QtWidgets import (
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from neverlate.constants import APP_NAME, OUTPUT_DISMISS, OUTPUT_SNOOZE
+from neverlate.preferences import PREFERENCES
 from neverlate.utils import get_icon, now_datetime, pretty_datetime
 
 LOCAL_TIMEZONE = datetime.now().astimezone().tzinfo
@@ -47,6 +49,7 @@ class AlertDialog(QDialog):
         self.time_to_event_label.setAlignment(Qt.AlignCenter)
 
         self.button_accept = QPushButton("Dismiss")
+        self.button_accept.setIcon(get_icon("dismiss.png"))
         self.button_accept.clicked.connect(self.dismiss)
         self.button_join = QPushButton("Joing Meeting")
         if "meet.google" in self.video_uri:
@@ -56,11 +59,20 @@ class AlertDialog(QDialog):
         if not self.video_uri:
             self.button_join.setVisible(False)
 
+        self.snooze_until_button = QPushButton("Snooze Until Right Before")
+        self.snooze_until_button.setIcon(get_icon("zzz.png"))
+        self.snooze_until_button.clicked.connect(self.snooze_till_start)
+        # self.snooze_until_button.setEnabled(False)
+
+        # Snooze untill...
         self.snooze_until_combo_box = QComboBox()
         self.snooze_until_combo_box.addItems(["Snooze Until..."])
         self.snooze_until_combo_box.currentIndexChanged.connect(
             self.snooze_until_combo_box_changed
         )
+        self.snooze_until_combo_box.setVisible(False)
+
+        # Snooze for...
         self.snooze_for_combo_box = QComboBox()
         self.snooze_for_combo_box.addItems(
             ["Snooze for...", "1 min", "3 min", "5 min", "10 min", "15 min", "30 min"]
@@ -68,6 +80,7 @@ class AlertDialog(QDialog):
         self.snooze_for_combo_box.currentTextChanged.connect(
             self.snooze_for_combo_box_changed
         )
+        self.snooze_for_combo_box.setVisible(PREFERENCES.show_snooze_for_menu)
 
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.update_ui)
@@ -90,10 +103,10 @@ class AlertDialog(QDialog):
         self.layout_ui(title)
         self.update_ui()
 
-    def enable_widgets(self, value: bool = True):
+    def enable_widgets(self, value: bool = True) -> None:
         """Enable buttons.  Auto fired after the app is opened."""
-        self.button_join.setEnabled(value)
-        self.button_accept.setEnabled(value)
+        for widget in (self.button_join, self.button_accept, self.snooze_until_button):
+            widget.setEnabled(value)
 
     def layout_ui(self, title: str):
         """Define the main UI layout."""
@@ -113,14 +126,12 @@ class AlertDialog(QDialog):
 
         # Primary buttons
         buttons_layout = QHBoxLayout()
-        button_t3 = QPushButton("Snooze for 3 minutes")
-        button_t3.clicked.connect(lambda: self.snooze(3))
-        button_t1 = QPushButton("Snooze for 1 minute")
-        button_t1.clicked.connect(lambda: self.snooze(1))
         buttons_layout.addStretch()
+
         # buttons_layout.addWidget(button_t3)
         # buttons_layout.addWidget(button_t1)
-        buttons_layout.addWidget(self.snooze_until_combo_box)
+        buttons_layout.addWidget(self.snooze_until_button)
+        # buttons_layout.addWidget(self.snooze_until_combo_box)
         buttons_layout.addWidget(self.snooze_for_combo_box)
         buttons_layout.addSpacing(50)
         # buttons_layout.addStretch()
@@ -132,6 +143,7 @@ class AlertDialog(QDialog):
         main_layout.addLayout(buttons_layout)
         main_layout.addStretch()
         self.setWindowFlags(Qt.WindowStaysOnTopHint)
+        self._open_dialog_time = time()
 
     def close(self) -> bool:
         # return super().close()
@@ -188,8 +200,7 @@ class AlertDialog(QDialog):
         if self.underMouse():
             self.kill_timer.start(RESTART_TIMER)
         self.update_snooze_for_combo_box_icons()
-        self.update_snooze_until_options()
-        # self.setWindowTitle(f"Time to event: {self.kill_timer.remainingTime()}")
+        # self.update_snooze_until_options()
 
         now = datetime.now(LOCAL_TIMEZONE)
         seconds_till = (self.start_time - now).total_seconds()
@@ -201,6 +212,7 @@ class AlertDialog(QDialog):
         if seconds_till <= 0:
             # Late
             self.setWindowIcon(get_icon("warning.png"))
+            self.snooze_until_button.setVisible(False)
             self.time_to_event_label.setText(
                 f"YOU'RE LATE! (How could this happen!?)\nTHE EVENT STARTED {hrs}{min_}:{sec} AGO!!"
             )
@@ -209,10 +221,10 @@ class AlertDialog(QDialog):
             font.setPointSize(self.standard_font_size * 2 * FONT_SIZE_MULTIPLIER)
             self.time_to_event_label.setFont(font)
             self.setStyleSheet("background-color: rgb(255, 55, 55);")
-            if not self.has_shown_maximized:
+            self.snooze_until_combo_box.setVisible(False)
+            if seconds_till < -30 and not self.has_shown_maximized:
                 self.showMaximized()
                 self.has_shown_maximized = True
-            self.snooze_until_combo_box.setVisible(False)
         else:
             if seconds_till < 60 * 2:
                 # Warning!
@@ -229,6 +241,14 @@ class AlertDialog(QDialog):
         """Close the dialog and snooze for X minutes."""
         print(f"{OUTPUT_SNOOZE} {int(minutes * 60)}")
         sys.exit(0)
+
+    @Slot()
+    def snooze_till_start(self):
+        next_alert_time = self.start_time - timedelta(
+            minutes=(PREFERENCES.snooze_until_seconds / 60.0)
+        )
+        time_to_snooze = now_datetime() - next_alert_time
+        self.snooze(-time_to_snooze.total_seconds() / 60)
 
     @Slot(str)
     def snooze_for_combo_box_changed(self, new_text: str):
