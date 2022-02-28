@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import os
 import time
+import traceback
 from pprint import pprint as pp
 from typing import Any, Optional
 
@@ -133,9 +134,13 @@ class TimeEvent:
     def get_video_url(self) -> str:
         entry_points = self._event.get("conferenceData", {}).get("entryPoints", [])
         for entry_point in entry_points:
-            if entry_point["entryPointType"] == "video":
+            if entry_point.get("entryPointType", "") == "video":
                 return entry_point["uri"]
 
+        # Occasionally there are events with links that aren't categorized but have URIs...
+        for entry_point in entry_points:
+            if "entryPointType" not in entry_point and entry_point.get("uri"):
+                return entry_point.get("uri")
         return ""
 
     def has_declined(self) -> bool:
@@ -285,6 +290,10 @@ class GoogleCalDownloader:  # (QObject):
                 event = TimeEvent(item, calendar)
             except ValueError:
                 #  print("Invalid event", item.get("summary", "<No Title>"))
+                continue
+            except:
+                # Unknown error needs to be handled
+                print(traceback.format_exc())
                 continue
             result.append(event)
 
