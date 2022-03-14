@@ -58,7 +58,9 @@ class UpdateCalendar(QThread):
             ]
             self.gcal.update_events(calendars=calendars_to_update)
         except RefreshError:
-            logger.error("BAD THINGS HAVE HAPPENED AND NEED TO BE FIXED")
+            logger.debug(
+                "RefreshError while trying to download calendars + events. (Will try again)"
+            )
             self.needs_login = True
         except ConnectionResetError:
             logger.debug(
@@ -87,6 +89,7 @@ class App:
         self.app.setQuitOnLastWindowClosed(False)
         self.main_dialog = MainDialog()
         self.main_dialog.update_now_button.clicked.connect(self.on_update_now)
+        self.last_tray_click_time = time.time()
 
         # Size of initial window
         rect = QRect(0, 0, 600, 300)
@@ -294,7 +297,20 @@ class App:
                 QSystemTrayIcon.ActivationReason.Trigger,
                 QSystemTrayIcon.ActivationReason.DoubleClick,
             ):
-                # Force show the main dialog
+                if reason == QSystemTrayIcon.ActivationReason.Trigger:
+                    # If the user hasn't clicked the tray icon in a while, then the user must be requesting it.
+                    # Bring it to the front forcefully.
+                    last_tray_click_time = self.last_tray_click_time
+                    self.last_tray_click_time = time.time()
+                    if (
+                        self.main_dialog.isVisible()
+                        and time.time() - last_tray_click_time > 10
+                    ):
+                        self.main_dialog.close()
+                        self.show_main_dialog()
+                        return
+
+                # Toggle the visibility of the main dialog.
                 if self.main_dialog.isVisible():
                     self.main_dialog.close()
                 else:
